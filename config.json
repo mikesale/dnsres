@@ -6,11 +6,14 @@
   ],
   "query_timeout": "5s",
   "query_interval": "1m",
-  "failure_threshold": 5,
-  "reset_timeout": "30s",
-  "half_open_timeout": "5s",
-  "max_cache_ttl": "1h",
-  "health_port": 8080,
-  "metrics_port": 9090
+  "health_port": 8880,
+  "metrics_port": 9990,
+  "log_dir": "logs",
+  "circuit_breaker": {
+    "threshold": 5,
+    "timeout": "30s"
+  },
+  "cache": {
+    "max_size": 1000
+  }
 }
-
