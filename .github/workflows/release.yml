@@ -6,27 +6,33 @@ on:
       - 'v*'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        goos: [darwin, linux]
+        goarch: [amd64]
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+        uses: actions/checkout@v2
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v2
         with:
-          go-version: '1.21'
+          go-version: '1.24'
 
       - name: Build
-        run: make build-all
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dnsres-${{ matrix.goos }}-${{ matrix.goarch }}
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            release/*.tar.gz
-            release/*.zip
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./dnsres-${{ matrix.goos }}-${{ matrix.goarch }}
+          asset_name: dnsres-${{ matrix.goos }}-${{ matrix.goarch }}
+          asset_content_type: application/octet-stream 
