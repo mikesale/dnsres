@@ -5,6 +5,13 @@ A tool for monitoring DNS resolution across multiple servers with advanced featu
 ## Why?
 We ran into some issues with name resolution that were causing API calls to fail intermittently, but we couldn't independently identify if there were actual problems with the name resolution and if so, across what servers and for how long. This utility will help you monitor and report on DNS and name resolution issues so you can correlate them with your applications' calling APIs that are getting network errors.
 
+## Getting started
+What you need:
+- The nameserver(s) your infrastructure uses
+- The hostname you need to test resolution against
+
+
+## Ideas
 What would I do next just for fun? If I want to have fun with it, I'd like to use an edge LLM to analyze the logs and look for anomalies with some mini-ML. Then maybe set it up as an MCP server 😎
 
 ## Features
