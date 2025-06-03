@@ -1,6 +1,7 @@
 package dnspool
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,11 @@ func NewClientPool(maxSize int, timeout time.Duration) *ClientPool {
 func (p *ClientPool) Get(server string) (*dns.Client, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// Assume port 53 if not specified
+	if !strings.Contains(server, ":") {
+		server = server + ":53"
+	}
 
 	clients := p.clients[server]
 	if len(clients) > 0 {

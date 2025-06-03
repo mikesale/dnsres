@@ -1,11 +1,11 @@
 {
-  "hostnames": ["example.com", "google.com"],
+  "hostnames": ["smythos.com", "app.smythos.com"],
   "dns_servers": [
-    "8.8.8.8",
-    "1.1.1.1"
+    "8.8.8.8:53",
+    "1.1.1.1:53"
   ],
   "query_timeout": "5s",
-  "query_interval": "1m",
+  "query_interval": "30s",
   "health_port": 8880,
   "metrics_port": 9990,
   "log_dir": "logs",

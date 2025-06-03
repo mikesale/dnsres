@@ -204,6 +204,10 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 	// Initialize circuit breakers
 	breakers := make(map[string]*circuitbreaker.CircuitBreaker)
 	for _, server := range config.DNSServers {
+		// Assume port 53 if not specified
+		if !strings.Contains(server, ":") {
+			server = server + ":53"
+		}
 		breakers[server] = circuitbreaker.NewCircuitBreaker(
 			config.CircuitBreaker.Threshold,
 			config.CircuitBreaker.Timeout.Duration,

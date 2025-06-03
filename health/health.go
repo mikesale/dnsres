@@ -3,6 +3,7 @@ package health
 import (
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,6 +73,10 @@ func (hc *HealthChecker) checkServers() {
 	defer hc.mu.Unlock()
 
 	for _, server := range hc.servers {
+		// Assume port 53 if not specified
+		if !strings.Contains(server, ":") {
+			server = server + ":53"
+		}
 		start := time.Now()
 		// Simple TCP connection check
 		conn, err := net.DialTimeout("tcp", server, 5*time.Second)
