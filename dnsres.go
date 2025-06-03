@@ -151,6 +151,7 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		breakers[server] = circuitbreaker.NewCircuitBreaker(
 			config.CircuitBreaker.Threshold,
 			config.CircuitBreaker.Timeout,
+			server,
 		)
 	}
 

@@ -24,12 +24,32 @@ What would I do next just for fun? If I want to have fun with it, I'd like to us
 
 ## Installation
 
-1. Ensure you have Go 1.21 or later installed
-2. Clone the repository
-3. Build the project:
-   ```bash
-   go build -o dnsres
-   ```
+### macOS
+```bash
+# Intel Mac
+curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-darwin-amd64-v1.0.0.tar.gz | tar xz
+sudo mv dnsres-darwin-amd64 /usr/local/bin/dnsres
+
+# Apple Silicon
+curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-darwin-arm64-v1.0.0.tar.gz | tar xz
+sudo mv dnsres-darwin-arm64 /usr/local/bin/dnsres
+```
+
+### Linux
+```bash
+# AMD64
+curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-linux-amd64-v1.0.0.tar.gz | tar xz
+sudo mv dnsres-linux-amd64 /usr/local/bin/dnsres
+
+# ARM64
+curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-linux-arm64-v1.0.0.tar.gz | tar xz
+sudo mv dnsres-linux-arm64 /usr/local/bin/dnsres
+```
+
+### Windows
+1. Download `dnsres-windows-amd64-v1.0.0.zip`
+2. Extract the zip file
+3. Move `dnsres-windows-amd64.exe` to a directory in your PATH
 
 ## Configuration
 
@@ -96,37 +116,18 @@ The circuit breaker will:
 
 ## Usage
 
-### Running the Monitor
+After installation, you can use the DNS resolver tool:
 
 ```bash
-./dnsres
+# Basic usage
+dnsres -config config.json
+
+# Override hostname
+dnsres -config config.json -host example.com
+
+# Generate statistics report
+dnsres -config config.json -report
 ```
-
-This will start the DNS resolution monitor using the configuration from `config.json`. The program will:
-- Create two log files: `dnsres-success.log` and `dnsres-error.log`
-- Perform DNS resolution checks at the configured interval
-- Log successful and failed resolutions with circuit breaker states
-- Handle graceful shutdown with Ctrl+C
-- Expose Prometheus metrics on port 9090
-
-### Viewing Statistics
-
-```bash
-./dnsres -report
-```
-
-This will generate a report showing resolution statistics grouped by hour and DNS server.
-
-### Command Line Options
-
-- `-host`: Override the hostname from config file
-  ```bash
-  ./dnsres -host example.com
-  ```
-- `-report`: Generate and display statistics report
-  ```bash
-  ./dnsres -report
-  ```
 
 ## Sample Output
 

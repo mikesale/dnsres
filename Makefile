@@ -1,9 +1,11 @@
-.PHONY: all build test clean lint fmt vet coverage docker-build docker-run help
+.PHONY: all build test clean lint fmt vet coverage docker-build docker-run help release
 
 # Variables
 BINARY_NAME=dnsres
 VERSION=$(shell git describe --tags --always --dirty)
 LDFLAGS=-ldflags "-X main.Version=$(VERSION)"
+BUILD_DIR=build
+RELEASE_DIR=release
 
 # Default target
 all: clean build
@@ -12,6 +14,27 @@ all: clean build
 build:
 	@echo "Building $(BINARY_NAME)..."
 	go build $(LDFLAGS) -o $(BINARY_NAME)
+
+# Cross-compilation targets
+build-all: clean
+	@echo "Building for all platforms..."
+	@mkdir -p $(BUILD_DIR)
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe
+
+# Create release packages
+release: build-all
+	@echo "Creating release packages..."
+	@mkdir -p $(RELEASE_DIR)
+	@cd $(BUILD_DIR) && \
+		tar czf ../$(RELEASE_DIR)/$(BINARY_NAME)-darwin-amd64-$(VERSION).tar.gz $(BINARY_NAME)-darwin-amd64 && \
+		tar czf ../$(RELEASE_DIR)/$(BINARY_NAME)-darwin-arm64-$(VERSION).tar.gz $(BINARY_NAME)-darwin-arm64 && \
+		tar czf ../$(RELEASE_DIR)/$(BINARY_NAME)-linux-amd64-$(VERSION).tar.gz $(BINARY_NAME)-linux-amd64 && \
+		tar czf ../$(RELEASE_DIR)/$(BINARY_NAME)-linux-arm64-$(VERSION).tar.gz $(BINARY_NAME)-linux-arm64 && \
+		zip ../$(RELEASE_DIR)/$(BINARY_NAME)-windows-amd64-$(VERSION).zip $(BINARY_NAME)-windows-amd64.exe
 
 # Run tests
 test:
@@ -44,6 +67,8 @@ clean:
 	@echo "Cleaning..."
 	rm -f $(BINARY_NAME)
 	rm -f coverage.out
+	rm -rf $(BUILD_DIR)
+	rm -rf $(RELEASE_DIR)
 
 # Build Docker image
 docker-build:
@@ -73,6 +98,8 @@ help:
 	@echo "Available targets:"
 	@echo "  all          - Clean and build the application"
 	@echo "  build        - Build the application"
+	@echo "  build-all    - Build for all supported platforms"
+	@echo "  release      - Create release packages for all platforms"
 	@echo "  test         - Run tests"
 	@echo "  coverage     - Run tests with coverage"
 	@echo "  lint         - Run linters"
