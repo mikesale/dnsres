@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"dnsres/metrics"
+
 	"github.com/miekg/dns"
 )
 
@@ -33,12 +35,14 @@ func (p *ClientPool) Get(server string) (*dns.Client, error) {
 	if len(clients) > 0 {
 		client := clients[len(clients)-1]
 		p.clients[server] = clients[:len(clients)-1]
+		metrics.DNSResolutionProtocol.WithLabelValues(server, "", "pooled").Inc()
 		return client, nil
 	}
 
 	client := &dns.Client{
 		Timeout: p.Timeout,
 	}
+	metrics.DNSResolutionProtocol.WithLabelValues(server, "", "new").Inc()
 	return client, nil
 }
 
@@ -53,5 +57,25 @@ func (p *ClientPool) Put(client *dns.Client) {
 	// Add to pool if not at max size
 	if len(p.clients[""]) < p.MaxSize {
 		p.clients[""] = append(p.clients[""], client)
+		metrics.DNSResolutionProtocol.WithLabelValues("", "", "returned").Inc()
+	} else {
+		metrics.DNSResolutionProtocol.WithLabelValues("", "", "dropped").Inc()
+	}
+}
+
+// GetStats returns pool statistics
+func (p *ClientPool) GetStats() map[string]interface{} {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	totalClients := 0
+	for _, clients := range p.clients {
+		totalClients += len(clients)
+	}
+
+	return map[string]interface{}{
+		"total_clients": totalClients,
+		"max_size":      p.MaxSize,
+		"timeout":       p.Timeout.String(),
 	}
 }

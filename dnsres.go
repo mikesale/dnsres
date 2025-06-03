@@ -30,18 +30,14 @@ import (
 
 // Config represents the configuration for the DNS resolver
 type Config struct {
-	Hostnames        []string      `json:"hostnames"`
-	DNSServers       []string      `json:"dns_servers"`
-	QueryTimeout     time.Duration `json:"query_timeout"`
-	QueryInterval    time.Duration `json:"query_interval"`
-	FailureThreshold int           `json:"failure_threshold"`
-	ResetTimeout     time.Duration `json:"reset_timeout"`
-	HalfOpenTimeout  time.Duration `json:"half_open_timeout"`
-	MaxCacheTTL      time.Duration `json:"max_cache_ttl"`
-	HealthPort       int           `json:"health_port"`
-	MetricsPort      int           `json:"metrics_port"`
-	LogDir           string        `json:"log_dir"`
-	CircuitBreaker   struct {
+	Hostnames      []string      `json:"hostnames"`
+	DNSServers     []string      `json:"dns_servers"`
+	QueryTimeout   time.Duration `json:"query_timeout"`
+	QueryInterval  time.Duration `json:"query_interval"`
+	HealthPort     int           `json:"health_port"`
+	MetricsPort    int           `json:"metrics_port"`
+	LogDir         string        `json:"log_dir"`
+	CircuitBreaker struct {
 		Threshold int           `json:"threshold"`
 		Timeout   time.Duration `json:"timeout"`
 	} `json:"circuit_breaker"`
@@ -60,6 +56,9 @@ func (c *Config) Validate() error {
 	}
 	if c.QueryTimeout <= 0 {
 		return fmt.Errorf("invalid query timeout")
+	}
+	if c.QueryInterval <= 0 {
+		return fmt.Errorf("invalid query interval")
 	}
 	if c.CircuitBreaker.Threshold <= 0 {
 		return fmt.Errorf("invalid circuit breaker threshold")
@@ -292,14 +291,14 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname string) (*dnsanalysis.DNSResponse, error) {
 	// Check cache first
 	if cached, ok := r.cache.Get(hostname); ok {
-		metrics.DNSCacheHits.Inc()
+		metrics.DNSResolutionCacheHit.WithLabelValues(server, hostname).Inc()
 		return cached, nil
 	}
-	metrics.DNSCacheMisses.Inc()
+	metrics.DNSResolutionCacheMiss.WithLabelValues(server, hostname).Inc()
 
 	// Check circuit breaker
 	if !r.breakers[server].Allow() {
-		metrics.DNSCircuitBreakerTrips.WithLabelValues(server).Inc()
+		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "circuit_breaker").Inc()
 		return nil, fmt.Errorf("circuit breaker open for %s", server)
 	}
 
@@ -314,31 +313,37 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	msg := new(dns.Msg)
 	msg.SetQuestion(dns.Fqdn(hostname), dns.TypeA)
 
+	// Increment total resolution attempts
+	metrics.DNSResolutionTotal.WithLabelValues(server, hostname).Inc()
+
 	// Send query
 	start := time.Now()
-	response, _, err := client.ExchangeWithContext(ctx, msg, server)
+	response, _, err := client.Exchange(msg, server)
 	if err != nil {
 		r.breakers[server].RecordFailure()
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = err.Error()
+		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "query_error").Inc()
 		return nil, fmt.Errorf("DNS query failed: %w", err)
 	}
 
 	// Record metrics
 	duration := time.Since(start).Seconds()
-	metrics.DNSResolutionDuration.WithLabelValues(server).Observe(duration)
-	metrics.DNSResponseSize.WithLabelValues(server).Observe(float64(response.Len()))
+	metrics.DNSResolutionDuration.WithLabelValues(server, hostname).Observe(duration)
+	metrics.DNSResponseSize.WithLabelValues(server, hostname).Observe(float64(response.Len()))
 
 	// Process response
 	if response.Rcode != dns.RcodeSuccess {
 		r.breakers[server].RecordFailure()
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = dns.RcodeToString[response.Rcode]
+		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, dns.RcodeToString[response.Rcode]).Inc()
 		return nil, fmt.Errorf("DNS query returned error code: %s", dns.RcodeToString[response.Rcode])
 	}
 
 	r.breakers[server].RecordSuccess()
 	r.stats.Stats[server].Total++
+	metrics.DNSResolutionSuccess.WithLabelValues(server, hostname).Inc()
 
 	// Create DNS response
 	ttl := getMinTTL(response)
@@ -492,26 +497,14 @@ func validateConfig(cfg *Config) error {
 	if cfg.QueryInterval <= 0 {
 		return errors.New("query interval must be positive")
 	}
-	if cfg.FailureThreshold <= 0 {
-		return errors.New("failure threshold must be positive")
+	if cfg.CircuitBreaker.Threshold <= 0 {
+		return errors.New("circuit breaker threshold must be positive")
 	}
-	if cfg.ResetTimeout <= 0 {
-		return errors.New("reset timeout must be positive")
+	if cfg.CircuitBreaker.Timeout <= 0 {
+		return errors.New("circuit breaker timeout must be positive")
 	}
-	if cfg.HalfOpenTimeout <= 0 {
-		return errors.New("half-open timeout must be positive")
-	}
-	if cfg.MaxCacheTTL <= 0 {
-		return errors.New("max cache TTL must be positive")
-	}
-	if cfg.HealthPort <= 0 || cfg.HealthPort > 65535 {
-		return errors.New("invalid health port")
-	}
-	if cfg.MetricsPort <= 0 || cfg.MetricsPort > 65535 {
-		return errors.New("invalid metrics port")
-	}
-	if cfg.LogDir == "" {
-		cfg.LogDir = "logs"
+	if cfg.Cache.MaxSize <= 0 {
+		return errors.New("cache max size must be positive")
 	}
 	return nil
 }

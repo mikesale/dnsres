@@ -269,49 +269,6 @@ var (
 		},
 		[]string{"component"},
 	)
-
-	// DNSResolutionAttempts tracks total resolution attempts
-	DNSResolutionAttempts = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "dns_resolution_attempts_total",
-			Help: "Total number of DNS resolution attempts",
-		},
-		[]string{"server", "hostname"},
-	)
-
-	// DNSResolutionFailures tracks failed resolutions
-	DNSResolutionFailures = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "dns_resolution_failures_total",
-			Help: "Total number of failed DNS resolutions",
-		},
-		[]string{"server", "hostname", "error"},
-	)
-
-	// DNSCacheHits tracks cache hits
-	DNSCacheHits = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "dns_cache_hits_total",
-			Help: "Total number of DNS cache hits",
-		},
-	)
-
-	// DNSCacheMisses tracks cache misses
-	DNSCacheMisses = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "dns_cache_misses_total",
-			Help: "Total number of DNS cache misses",
-		},
-	)
-
-	// DNSCircuitBreakerTrips tracks circuit breaker trips
-	DNSCircuitBreakerTrips = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "dns_circuit_breaker_trips_total",
-			Help: "Total number of circuit breaker trips",
-		},
-		[]string{"server"},
-	)
 )
 
 func init() {
@@ -321,6 +278,23 @@ func init() {
 	prometheus.MustRegister(DNSResolutionFailure)
 	prometheus.MustRegister(DNSResolutionDuration)
 	prometheus.MustRegister(DNSResolutionConsistency)
+	prometheus.MustRegister(DNSResponseSize)
+	prometheus.MustRegister(DNSRecordCount)
+	prometheus.MustRegister(DNSResolutionLatency)
+	prometheus.MustRegister(DNSResolutionTTL)
+	prometheus.MustRegister(DNSResolutionRetries)
+	prometheus.MustRegister(DNSResolutionTimeout)
+	prometheus.MustRegister(DNSResolutionNXDOMAIN)
+	prometheus.MustRegister(DNSResolutionSERVFAIL)
+	prometheus.MustRegister(DNSResolutionRefused)
+	prometheus.MustRegister(DNSResolutionRateLimit)
+	prometheus.MustRegister(DNSResolutionNetworkError)
+	prometheus.MustRegister(DNSResolutionDNSSEC)
+	prometheus.MustRegister(DNSResolutionEDNS)
+	prometheus.MustRegister(DNSResolutionDNSSECSupport)
+	prometheus.MustRegister(DNSResolutionProtocol)
+	prometheus.MustRegister(DNSResolutionCacheHit)
+	prometheus.MustRegister(DNSResolutionCacheMiss)
 
 	// Register circuit breaker metrics
 	prometheus.MustRegister(CircuitBreakerState)
@@ -335,13 +309,4 @@ func init() {
 	// Register health check metrics
 	prometheus.MustRegister(HealthStatus)
 	prometheus.MustRegister(HealthCheckDuration)
-
-	// Register new metrics
-	prometheus.MustRegister(
-		DNSResolutionAttempts,
-		DNSResolutionFailures,
-		DNSCacheHits,
-		DNSCacheMisses,
-		DNSCircuitBreakerTrips,
-	)
 }

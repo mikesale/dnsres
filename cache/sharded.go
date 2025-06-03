@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"dnsres/dnsanalysis"
+	"dnsres/metrics"
 )
 
 // ShardedCache implements a sharded cache for DNS responses
@@ -57,6 +58,7 @@ func (c *ShardedCache) Get(key string) (*dnsanalysis.DNSResponse, bool) {
 
 	entry, ok := shard.entries[key]
 	if !ok {
+		metrics.CacheMisses.Inc()
 		return nil, false
 	}
 
@@ -67,9 +69,11 @@ func (c *ShardedCache) Get(key string) (*dnsanalysis.DNSResponse, bool) {
 		shard.size -= entry.Size
 		shard.mu.Unlock()
 		shard.mu.RLock()
+		metrics.CacheMisses.Inc()
 		return nil, false
 	}
 
+	metrics.CacheHits.Inc()
 	return entry.Response, true
 }
 
@@ -102,6 +106,7 @@ func (c *ShardedCache) Set(key string, response *dnsanalysis.DNSResponse, ttl ti
 	// Add new entry
 	shard.entries[key] = entry
 	shard.size += size
+	metrics.CacheSize.Set(float64(c.getTotalEntries()))
 }
 
 // Delete removes a value from the cache
@@ -113,6 +118,8 @@ func (c *ShardedCache) Delete(key string) {
 	if entry, ok := shard.entries[key]; ok {
 		shard.size -= entry.Size
 		delete(shard.entries, key)
+		metrics.CacheEvictions.Inc()
+		metrics.CacheSize.Set(float64(c.getTotalEntries()))
 	}
 }
 
@@ -124,10 +131,25 @@ func (c *ShardedCache) Clear() {
 		shard.size = 0
 		shard.mu.Unlock()
 	}
+	metrics.CacheSize.Set(0)
 }
 
 // GetStats returns cache statistics
-func (c *ShardedCache) GetStats() (int, int64) {
+func (c *ShardedCache) GetStats() map[string]interface{} {
+	totalEntries, totalSize := c.getTotalStats()
+	return map[string]interface{}{
+		"entries":    totalEntries,
+		"size":       totalSize,
+		"hits":       float64(0), // Prometheus metrics are collected separately
+		"misses":     float64(0), // Prometheus metrics are collected separately
+		"evictions":  float64(0), // Prometheus metrics are collected separately
+		"max_size":   c.maxSize,
+		"num_shards": c.numShards,
+	}
+}
+
+// getTotalStats returns the total number of entries and size across all shards
+func (c *ShardedCache) getTotalStats() (int, int64) {
 	var totalEntries int
 	var totalSize int64
 
@@ -139,6 +161,12 @@ func (c *ShardedCache) GetStats() (int, int64) {
 	}
 
 	return totalEntries, totalSize
+}
+
+// getTotalEntries returns the total number of entries across all shards
+func (c *ShardedCache) getTotalEntries() int {
+	entries, _ := c.getTotalStats()
+	return entries
 }
 
 // getShard returns the shard for a given key
@@ -165,6 +193,7 @@ func (c *ShardedCache) evictOldest(shard *CacheShard) {
 	if oldestKey != "" {
 		shard.size -= shard.entries[oldestKey].Size
 		delete(shard.entries, oldestKey)
+		metrics.CacheEvictions.Inc()
 	}
 }
 

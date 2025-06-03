@@ -6,31 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"dnsres/metrics"
 )
-
-var (
-	healthStatus = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "dns_resolver_health_status",
-			Help: "Health status of the DNS resolver (1 = healthy, 0 = unhealthy)",
-		},
-		[]string{"component"},
-	)
-	healthCheckDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "dns_resolver_health_check_duration_seconds",
-			Help:    "Duration of health checks in seconds",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"component"},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(healthStatus)
-	prometheus.MustRegister(healthCheckDuration)
-}
 
 // HealthStatus represents the health status of the service
 type HealthStatus struct {
@@ -95,14 +72,18 @@ func (hc *HealthChecker) checkServers() {
 	defer hc.mu.Unlock()
 
 	for _, server := range hc.servers {
+		start := time.Now()
 		// Simple TCP connection check
 		conn, err := net.DialTimeout("tcp", server, 5*time.Second)
 		if err != nil {
 			hc.status[server] = false
+			metrics.DNSResolutionFailure.WithLabelValues(server, "", "health_check").Inc()
 			continue
 		}
 		conn.Close()
 		hc.status[server] = true
+		metrics.DNSResolutionSuccess.WithLabelValues(server, "").Inc()
+		metrics.DNSResolutionDuration.WithLabelValues(server, "").Observe(time.Since(start).Seconds())
 	}
 }
 

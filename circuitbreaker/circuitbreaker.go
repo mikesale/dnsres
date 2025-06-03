@@ -3,6 +3,8 @@ package circuitbreaker
 import (
 	"sync"
 	"time"
+
+	"dnsres/metrics"
 )
 
 // State represents the circuit breaker state
@@ -21,13 +23,15 @@ type CircuitBreaker struct {
 	failures  int
 	lastError time.Time
 	mu        sync.Mutex
+	server    string // Add server field for metrics
 }
 
 // NewCircuitBreaker creates a new circuit breaker
-func NewCircuitBreaker(threshold int, timeout time.Duration) *CircuitBreaker {
+func NewCircuitBreaker(threshold int, timeout time.Duration, server string) *CircuitBreaker {
 	return &CircuitBreaker{
 		threshold: threshold,
 		timeout:   timeout,
+		server:    server,
 	}
 }
 
@@ -38,11 +42,15 @@ func (cb *CircuitBreaker) Allow() bool {
 
 	if cb.failures >= cb.threshold {
 		if time.Since(cb.lastError) < cb.timeout {
+			metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Open))
 			return false
 		}
-		// Reset after timeout
-		cb.failures = 0
+		metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(HalfOpen))
+	} else {
+		metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Closed))
 	}
+
+	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Set(float64(cb.failures))
 	return true
 }
 
@@ -51,6 +59,8 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 	cb.failures = 0
+	metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Closed))
+	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Set(0)
 }
 
 // RecordFailure records a failed operation
@@ -59,6 +69,11 @@ func (cb *CircuitBreaker) RecordFailure() {
 	defer cb.mu.Unlock()
 	cb.failures++
 	cb.lastError = time.Now()
+	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Set(float64(cb.failures))
+
+	if cb.failures >= cb.threshold {
+		metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Open))
+	}
 }
 
 // GetState returns the current state of the circuit breaker
