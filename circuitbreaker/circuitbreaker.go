@@ -50,7 +50,7 @@ func (cb *CircuitBreaker) Allow() bool {
 		metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Closed))
 	}
 
-	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Set(float64(cb.failures))
+	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Inc()
 	return true
 }
 
@@ -60,7 +60,7 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	defer cb.mu.Unlock()
 	cb.failures = 0
 	metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Closed))
-	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Set(0)
+	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Inc()
 }
 
 // RecordFailure records a failed operation
@@ -69,7 +69,7 @@ func (cb *CircuitBreaker) RecordFailure() {
 	defer cb.mu.Unlock()
 	cb.failures++
 	cb.lastError = time.Now()
-	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Set(float64(cb.failures))
+	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Inc()
 
 	if cb.failures >= cb.threshold {
 		metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Open))

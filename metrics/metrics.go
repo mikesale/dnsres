@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	// DNSResolutionTotal tracks total DNS resolution attempts
+	// DNS Resolution Metrics
 	DNSResolutionTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_total",
@@ -15,7 +15,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionSuccess tracks successful DNS resolutions
 	DNSResolutionSuccess = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_success",
@@ -24,7 +23,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionFailure tracks failed DNS resolutions
 	DNSResolutionFailure = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_failure",
@@ -33,7 +31,6 @@ var (
 		[]string{"server", "hostname", "error_type"},
 	)
 
-	// DNSResolutionDuration tracks DNS resolution duration
 	DNSResolutionDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "dns_resolution_duration_seconds",
@@ -43,64 +40,14 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// CircuitBreakerState tracks the current state of circuit breakers
-	CircuitBreakerState = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "circuit_breaker_state",
-			Help: "Current state of each DNS server's circuit breaker (0=Closed, 1=Open, 2=Half-Open)",
-		},
-		[]string{"server"},
-	)
-
-	// CircuitBreakerFailures tracks consecutive failures
-	CircuitBreakerFailures = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "circuit_breaker_failures",
-			Help: "Number of consecutive failures for each DNS server",
-		},
-		[]string{"server"},
-	)
-
-	// DNSResponseSize tracks the size of DNS responses
-	DNSResponseSize = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "dns_response_size_bytes",
-			Help:    "Size of DNS responses in bytes",
-			Buckets: []float64{64, 128, 256, 512, 1024, 2048, 4096},
-		},
-		[]string{"server", "hostname"},
-	)
-
-	// DNSRecordCount tracks the number of records in responses
-	DNSRecordCount = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "dns_record_count",
-			Help:    "Number of records in DNS responses",
-			Buckets: []float64{1, 2, 5, 10, 20, 50, 100},
-		},
-		[]string{"server", "hostname", "record_type"},
-	)
-
-	// DNSResolutionLatency tracks the latency between servers
-	DNSResolutionLatency = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "dns_resolution_latency_seconds",
-			Help:    "Latency between different DNS servers",
-			Buckets: []float64{.001, .005, .01, .025, .05, .1, .25, .5, 1},
-		},
-		[]string{"server1", "server2", "hostname"},
-	)
-
-	// DNSResolutionConsistency tracks response consistency
 	DNSResolutionConsistency = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "dns_resolution_consistency",
-			Help: "Whether responses from different DNS servers are consistent (1 = consistent, 0 = inconsistent)",
+			Help: "Whether DNS responses are consistent across servers",
 		},
 		[]string{"hostname"},
 	)
 
-	// DNSResolutionTTL tracks TTL values from responses
 	DNSResolutionTTL = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "dns_resolution_ttl_seconds",
@@ -110,7 +57,6 @@ var (
 		[]string{"server", "hostname", "record_type"},
 	)
 
-	// DNSResolutionRetries tracks retry attempts
 	DNSResolutionRetries = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_retries_total",
@@ -119,7 +65,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionTimeout tracks timeout occurrences
 	DNSResolutionTimeout = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_timeout_total",
@@ -128,7 +73,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionNXDOMAIN tracks NXDOMAIN responses
 	DNSResolutionNXDOMAIN = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_nxdomain_total",
@@ -137,7 +81,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionSERVFAIL tracks SERVFAIL responses
 	DNSResolutionSERVFAIL = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_servfail_total",
@@ -146,7 +89,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionRefused tracks REFUSED responses
 	DNSResolutionRefused = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_refused_total",
@@ -155,7 +97,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionRateLimit tracks rate limiting occurrences
 	DNSResolutionRateLimit = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_rate_limit_total",
@@ -164,7 +105,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionNetworkError tracks network-related errors
 	DNSResolutionNetworkError = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_network_error_total",
@@ -173,7 +113,6 @@ var (
 		[]string{"server", "hostname", "error_type"},
 	)
 
-	// DNSResolutionDNSSEC tracks DNSSEC validation results
 	DNSResolutionDNSSEC = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_dnssec_total",
@@ -182,7 +121,6 @@ var (
 		[]string{"server", "hostname", "status"},
 	)
 
-	// DNSResolutionEDNS tracks EDNS support
 	DNSResolutionEDNS = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "dns_resolution_edns_support",
@@ -191,7 +129,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionDNSSECSupport tracks DNSSEC support
 	DNSResolutionDNSSECSupport = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "dns_resolution_dnssec_support",
@@ -200,7 +137,6 @@ var (
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionProtocol tracks protocol usage
 	DNSResolutionProtocol = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "dns_resolution_protocol_total",
@@ -209,20 +145,18 @@ var (
 		[]string{"server", "hostname", "protocol"},
 	)
 
-	// DNSResolutionCacheHit tracks cache hits
 	DNSResolutionCacheHit = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "dns_resolution_cache_hit_total",
-			Help: "Total number of DNS cache hits",
+			Name: "dns_resolution_cache_hit",
+			Help: "Number of cache hits",
 		},
 		[]string{"server", "hostname"},
 	)
 
-	// DNSResolutionCacheMiss tracks cache misses
 	DNSResolutionCacheMiss = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "dns_resolution_cache_miss_total",
-			Help: "Total number of DNS cache misses",
+			Name: "dns_resolution_cache_miss",
+			Help: "Number of cache misses",
 		},
 		[]string{"server", "hostname"},
 	)
@@ -234,18 +168,21 @@ var (
 			Help: "Current number of entries in the DNS cache",
 		},
 	)
+
 	CacheHits = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "dns_resolver_cache_hits_total",
 			Help: "Total number of cache hits",
 		},
 	)
+
 	CacheMisses = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "dns_resolver_cache_misses_total",
 			Help: "Total number of cache misses",
 		},
 	)
+
 	CacheEvictions = promauto.NewCounter(
 		prometheus.CounterOpts{
 			Name: "dns_resolver_cache_evictions_total",
@@ -253,60 +190,56 @@ var (
 		},
 	)
 
-	// Health check metrics
+	// Circuit Breaker Metrics
+	CircuitBreakerState = promauto.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "circuit_breaker_state",
+			Help: "Current state of circuit breaker (0=Closed, 1=Open, 2=Half-Open)",
+		},
+		[]string{"server"},
+	)
+
+	CircuitBreakerFailures = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "circuit_breaker_failures",
+			Help: "Number of consecutive failures for each server",
+		},
+		[]string{"server"},
+	)
+
+	// Health Check Metrics
 	HealthStatus = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "dns_resolver_health_status",
-			Help: "Health status of the DNS resolver (1 = healthy, 0 = unhealthy)",
+			Name: "health_status",
+			Help: "Health status of each DNS server (1=Healthy, 0=Unhealthy)",
 		},
-		[]string{"component"},
+		[]string{"server"},
 	)
+
 	HealthCheckDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "dns_resolver_health_check_duration_seconds",
+			Name:    "health_check_duration_seconds",
 			Help:    "Duration of health checks in seconds",
 			Buckets: prometheus.DefBuckets,
 		},
-		[]string{"component"},
+		[]string{"server"},
+	)
+
+	DNSRecordCount = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dns_record_count",
+			Help:    "Number of records in DNS responses",
+			Buckets: prometheus.LinearBuckets(0, 1, 20),
+		},
+		[]string{"server", "hostname", "type"},
+	)
+
+	DNSResponseSize = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "dns_response_size_bytes",
+			Help:    "Size of DNS responses in bytes",
+			Buckets: prometheus.ExponentialBuckets(64, 2, 10),
+		},
+		[]string{"server", "hostname"},
 	)
 )
-
-func init() {
-	// Register DNS resolution metrics
-	prometheus.MustRegister(DNSResolutionTotal)
-	prometheus.MustRegister(DNSResolutionSuccess)
-	prometheus.MustRegister(DNSResolutionFailure)
-	prometheus.MustRegister(DNSResolutionDuration)
-	prometheus.MustRegister(DNSResolutionConsistency)
-	prometheus.MustRegister(DNSResponseSize)
-	prometheus.MustRegister(DNSRecordCount)
-	prometheus.MustRegister(DNSResolutionLatency)
-	prometheus.MustRegister(DNSResolutionTTL)
-	prometheus.MustRegister(DNSResolutionRetries)
-	prometheus.MustRegister(DNSResolutionTimeout)
-	prometheus.MustRegister(DNSResolutionNXDOMAIN)
-	prometheus.MustRegister(DNSResolutionSERVFAIL)
-	prometheus.MustRegister(DNSResolutionRefused)
-	prometheus.MustRegister(DNSResolutionRateLimit)
-	prometheus.MustRegister(DNSResolutionNetworkError)
-	prometheus.MustRegister(DNSResolutionDNSSEC)
-	prometheus.MustRegister(DNSResolutionEDNS)
-	prometheus.MustRegister(DNSResolutionDNSSECSupport)
-	prometheus.MustRegister(DNSResolutionProtocol)
-	prometheus.MustRegister(DNSResolutionCacheHit)
-	prometheus.MustRegister(DNSResolutionCacheMiss)
-
-	// Register circuit breaker metrics
-	prometheus.MustRegister(CircuitBreakerState)
-	prometheus.MustRegister(CircuitBreakerFailures)
-
-	// Register cache metrics
-	prometheus.MustRegister(CacheSize)
-	prometheus.MustRegister(CacheHits)
-	prometheus.MustRegister(CacheMisses)
-	prometheus.MustRegister(CacheEvictions)
-
-	// Register health check metrics
-	prometheus.MustRegister(HealthStatus)
-	prometheus.MustRegister(HealthCheckDuration)
-}
