@@ -164,23 +164,77 @@ The tool exposes Prometheus metrics on port 9090. Available metrics include:
 
 The tool creates a single log file `dnsres.log` that contains structured JSON logs for all events. Each log entry includes:
 
-- Timestamp
-- Log level (INFO/ERROR)
-- Hostname
-- DNS server used
-- Circuit breaker state
-- Duration (in milliseconds)
-- Response size (for successful queries)
-- Record count (for successful queries)
-- Cache hit status
-- Error message (for failed resolutions)
-- Correlation ID (for tracking related events)
+### Basic Information
+- `timestamp`: When the event occurred
+- `level`: Log level (INFO/ERROR)
+- `hostname`: The domain being resolved
+- `server`: The DNS server used
+- `correlation_id`: Unique ID to track related events
+
+### System Context
+- `version`: The version of the DNS resolver
+- `environment`: Development/Staging/Production
+- `instance_id`: Unique identifier for the running instance
+
+### DNS Query Details
+- `query_type`: The type of DNS query (A, AAAA, MX, etc.)
+- `edns_enabled`: Whether EDNS was used
+- `dnssec_enabled`: Whether DNSSEC was enabled
+- `recursion_desired`: Whether recursion was requested
+
+### Performance Metrics
+- `duration_ms`: Total time taken for the resolution
+- `queue_time_ms`: Time spent waiting for a client from the pool
+- `network_latency_ms`: Raw network latency (excluding processing time)
+- `processing_time_ms`: Time spent processing the response
+- `cache_ttl_seconds`: Time-to-live of cached entries
+
+### Response Analysis
+- `response_code`: The DNS response code (NOERROR, NXDOMAIN, etc.)
+- `response_size`: Size of the DNS response in bytes
+- `record_count`: Number of records in the response
+- `authoritative`: Whether the response was authoritative
+- `truncated`: Whether the response was truncated
+- `response_flags`: Additional DNS response flags (AA, TC, RD, RA, AD, CD)
+
+### Circuit Breaker and Cache
+- `circuit_state`: Current state of the circuit breaker
+- `cache_hit`: Whether the response came from cache
+
+### Error Information
+- `error`: Error message (for failed queries)
+- `error_type`: Type of error (circuit_breaker, client_pool, query_error, dns_error)
 
 Example log entries:
 
 ```json
-{"timestamp":"2024-03-14T10:00:00Z","level":"INFO","hostname":"example.com","server":"8.8.8.8","circuit_state":"closed","duration_ms":45.2,"response_size":123,"record_count":2,"cache_hit":false,"correlation_id":"8.8.8.8-example.com-1710417600000000000"}
-{"timestamp":"2024-03-14T10:00:01Z","level":"ERROR","hostname":"example.com","server":"1.1.1.1","circuit_state":"half-open","duration_ms":0,"error":"DNS query returned error code: NXDOMAIN","correlation_id":"1.1.1.1-example.com-1710417601000000000"}
+{
+  "timestamp": "2024-03-14T10:00:00Z",
+  "level": "INFO",
+  "hostname": "example.com",
+  "server": "8.8.8.8",
+  "correlation_id": "8.8.8.8-example.com-1710417600000000000",
+  "version": "1.0.0",
+  "environment": "production",
+  "instance_id": "dnsres-1",
+  "query_type": "A",
+  "edns_enabled": true,
+  "dnssec_enabled": true,
+  "recursion_desired": true,
+  "duration_ms": 45.2,
+  "queue_time_ms": 0.5,
+  "network_latency_ms": 30.1,
+  "processing_time_ms": 14.6,
+  "cache_ttl_seconds": 300,
+  "response_code": "NOERROR",
+  "response_size": 123,
+  "record_count": 2,
+  "authoritative": false,
+  "truncated": false,
+  "response_flags": ["RD", "RA"],
+  "circuit_state": "closed",
+  "cache_hit": false
+}
 ```
 
 The structured logging format makes it easy to:
@@ -189,6 +243,9 @@ The structured logging format makes it easy to:
 - Track related events using correlation IDs
 - Analyze performance metrics
 - Monitor system health
+- Debug DNS resolution issues
+- Track cache effectiveness
+- Monitor circuit breaker behavior
 
 ## Building from Source
 

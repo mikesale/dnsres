@@ -90,17 +90,46 @@ type ServerStats struct {
 
 // LogEntry represents a structured log entry
 type LogEntry struct {
+	// Basic Information
 	Timestamp     time.Time `json:"timestamp"`
 	Level         string    `json:"level"`
 	Hostname      string    `json:"hostname"`
 	Server        string    `json:"server"`
-	CircuitState  string    `json:"circuit_state"`
-	Duration      float64   `json:"duration_ms,omitempty"`
-	Error         string    `json:"error,omitempty"`
-	ResponseSize  int       `json:"response_size,omitempty"`
-	RecordCount   int       `json:"record_count,omitempty"`
-	CacheHit      bool      `json:"cache_hit,omitempty"`
 	CorrelationID string    `json:"correlation_id"`
+
+	// System Context
+	Version     string `json:"version"`
+	Environment string `json:"environment"`
+	InstanceID  string `json:"instance_id"`
+
+	// DNS Query Details
+	QueryType        string `json:"query_type"`
+	EDNSEnabled      bool   `json:"edns_enabled"`
+	DNSSECEnabled    bool   `json:"dnssec_enabled"`
+	RecursionDesired bool   `json:"recursion_desired"`
+
+	// Performance Metrics
+	Duration       float64 `json:"duration_ms,omitempty"`
+	QueueTime      float64 `json:"queue_time_ms,omitempty"`
+	NetworkLatency float64 `json:"network_latency_ms,omitempty"`
+	ProcessingTime float64 `json:"processing_time_ms,omitempty"`
+	CacheTTL       int64   `json:"cache_ttl_seconds,omitempty"`
+
+	// Response Analysis
+	ResponseCode  string   `json:"response_code,omitempty"`
+	ResponseSize  int      `json:"response_size,omitempty"`
+	RecordCount   int      `json:"record_count,omitempty"`
+	Authoritative bool     `json:"authoritative,omitempty"`
+	Truncated     bool     `json:"truncated,omitempty"`
+	ResponseFlags []string `json:"response_flags,omitempty"`
+
+	// Circuit Breaker and Cache
+	CircuitState string `json:"circuit_state"`
+	CacheHit     bool   `json:"cache_hit,omitempty"`
+
+	// Error Information
+	Error     string `json:"error,omitempty"`
+	ErrorType string `json:"error_type,omitempty"`
 }
 
 // setupLogger initializes the structured logger
@@ -303,19 +332,29 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname string) (*dnsanalysis.DNSResponse, error) {
 	correlationID := fmt.Sprintf("%s-%s-%d", server, hostname, time.Now().UnixNano())
 	start := time.Now()
+	queueStart := time.Now()
 
 	// Check cache first
 	if cached, ok := r.cache.Get(hostname); ok {
 		metrics.DNSResolutionCacheHit.WithLabelValues(server, hostname).Inc()
 		r.logEvent(LogEntry{
-			Timestamp:     time.Now(),
-			Level:         "INFO",
-			Hostname:      hostname,
-			Server:        server,
-			CircuitState:  r.breakers[server].GetState(),
-			Duration:      time.Since(start).Seconds() * 1000,
-			CacheHit:      true,
-			CorrelationID: correlationID,
+			Timestamp:        time.Now(),
+			Level:            "INFO",
+			Hostname:         hostname,
+			Server:           server,
+			CircuitState:     r.breakers[server].GetState(),
+			Duration:         time.Since(start).Seconds() * 1000,
+			QueueTime:        time.Since(queueStart).Seconds() * 1000,
+			CacheHit:         true,
+			CacheTTL:         int64(cached.TTL),
+			QueryType:        "A",
+			EDNSEnabled:      true,
+			DNSSECEnabled:    true,
+			RecursionDesired: true,
+			CorrelationID:    correlationID,
+			Version:          "1.0.0",
+			Environment:      "production",
+			InstanceID:       os.Getenv("INSTANCE_ID"),
 		})
 		return cached, nil
 	}
@@ -326,13 +365,21 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "circuit_breaker").Inc()
 		err := fmt.Errorf("circuit breaker open for %s", server)
 		r.logEvent(LogEntry{
-			Timestamp:     time.Now(),
-			Level:         "ERROR",
-			Hostname:      hostname,
-			Server:        server,
-			CircuitState:  r.breakers[server].GetState(),
-			Error:         err.Error(),
-			CorrelationID: correlationID,
+			Timestamp:        time.Now(),
+			Level:            "ERROR",
+			Hostname:         hostname,
+			Server:           server,
+			CircuitState:     r.breakers[server].GetState(),
+			Error:            err.Error(),
+			ErrorType:        "circuit_breaker",
+			QueryType:        "A",
+			EDNSEnabled:      true,
+			DNSSECEnabled:    true,
+			RecursionDesired: true,
+			CorrelationID:    correlationID,
+			Version:          "1.0.0",
+			Environment:      "production",
+			InstanceID:       os.Getenv("INSTANCE_ID"),
 		})
 		return nil, err
 	}
@@ -342,13 +389,21 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	if err != nil {
 		err = fmt.Errorf("failed to get client from pool: %w", err)
 		r.logEvent(LogEntry{
-			Timestamp:     time.Now(),
-			Level:         "ERROR",
-			Hostname:      hostname,
-			Server:        server,
-			CircuitState:  r.breakers[server].GetState(),
-			Error:         err.Error(),
-			CorrelationID: correlationID,
+			Timestamp:        time.Now(),
+			Level:            "ERROR",
+			Hostname:         hostname,
+			Server:           server,
+			CircuitState:     r.breakers[server].GetState(),
+			Error:            err.Error(),
+			ErrorType:        "client_pool",
+			QueryType:        "A",
+			EDNSEnabled:      true,
+			DNSSECEnabled:    true,
+			RecursionDesired: true,
+			CorrelationID:    correlationID,
+			Version:          "1.0.0",
+			Environment:      "production",
+			InstanceID:       os.Getenv("INSTANCE_ID"),
 		})
 		return nil, err
 	}
@@ -357,32 +412,48 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	// Create DNS message
 	msg := new(dns.Msg)
 	msg.SetQuestion(dns.Fqdn(hostname), dns.TypeA)
+	msg.RecursionDesired = true
+	msg.SetEdns0(4096, true) // Enable EDNS with DNSSEC
 
 	// Increment total resolution attempts
 	metrics.DNSResolutionTotal.WithLabelValues(server, hostname).Inc()
 
 	// Send query
+	networkStart := time.Now()
 	response, _, err := client.Exchange(msg, server)
+	networkLatency := time.Since(networkStart).Seconds() * 1000
+
 	if err != nil {
 		r.breakers[server].RecordFailure()
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = err.Error()
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "query_error").Inc()
 		r.logEvent(LogEntry{
-			Timestamp:     time.Now(),
-			Level:         "ERROR",
-			Hostname:      hostname,
-			Server:        server,
-			CircuitState:  r.breakers[server].GetState(),
-			Duration:      time.Since(start).Seconds() * 1000,
-			Error:         err.Error(),
-			CorrelationID: correlationID,
+			Timestamp:        time.Now(),
+			Level:            "ERROR",
+			Hostname:         hostname,
+			Server:           server,
+			CircuitState:     r.breakers[server].GetState(),
+			Duration:         time.Since(start).Seconds() * 1000,
+			QueueTime:        time.Since(queueStart).Seconds() * 1000,
+			NetworkLatency:   networkLatency,
+			Error:            err.Error(),
+			ErrorType:        "query_error",
+			QueryType:        "A",
+			EDNSEnabled:      true,
+			DNSSECEnabled:    true,
+			RecursionDesired: true,
+			CorrelationID:    correlationID,
+			Version:          "1.0.0",
+			Environment:      "production",
+			InstanceID:       os.Getenv("INSTANCE_ID"),
 		})
 		return nil, fmt.Errorf("DNS query failed: %w", err)
 	}
 
 	// Record metrics
 	duration := time.Since(start).Seconds()
+	processingTime := duration - (networkLatency / 1000)
 	metrics.DNSResolutionDuration.WithLabelValues(server, hostname).Observe(duration)
 	metrics.DNSResponseSize.WithLabelValues(server, hostname).Observe(float64(response.Len()))
 
@@ -394,14 +465,26 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, dns.RcodeToString[response.Rcode]).Inc()
 		err := fmt.Errorf("DNS query returned error code: %s", dns.RcodeToString[response.Rcode])
 		r.logEvent(LogEntry{
-			Timestamp:     time.Now(),
-			Level:         "ERROR",
-			Hostname:      hostname,
-			Server:        server,
-			CircuitState:  r.breakers[server].GetState(),
-			Duration:      duration * 1000,
-			Error:         err.Error(),
-			CorrelationID: correlationID,
+			Timestamp:        time.Now(),
+			Level:            "ERROR",
+			Hostname:         hostname,
+			Server:           server,
+			CircuitState:     r.breakers[server].GetState(),
+			Duration:         duration * 1000,
+			QueueTime:        time.Since(queueStart).Seconds() * 1000,
+			NetworkLatency:   networkLatency,
+			ProcessingTime:   processingTime * 1000,
+			ResponseCode:     dns.RcodeToString[response.Rcode],
+			Error:            err.Error(),
+			ErrorType:        "dns_error",
+			QueryType:        "A",
+			EDNSEnabled:      true,
+			DNSSECEnabled:    true,
+			RecursionDesired: true,
+			CorrelationID:    correlationID,
+			Version:          "1.0.0",
+			Environment:      "production",
+			InstanceID:       os.Getenv("INSTANCE_ID"),
 		})
 		return nil, err
 	}
@@ -429,17 +512,53 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	// Cache the response
 	r.cache.Set(hostname, dnsResponse, time.Duration(ttl)*time.Second)
 
+	// Extract response flags
+	var flags []string
+	if response.Authoritative {
+		flags = append(flags, "AA")
+	}
+	if response.Truncated {
+		flags = append(flags, "TC")
+	}
+	if response.RecursionDesired {
+		flags = append(flags, "RD")
+	}
+	if response.RecursionAvailable {
+		flags = append(flags, "RA")
+	}
+	if response.AuthenticatedData {
+		flags = append(flags, "AD")
+	}
+	if response.CheckingDisabled {
+		flags = append(flags, "CD")
+	}
+
 	r.logEvent(LogEntry{
-		Timestamp:     time.Now(),
-		Level:         "INFO",
-		Hostname:      hostname,
-		Server:        server,
-		CircuitState:  r.breakers[server].GetState(),
-		Duration:      duration * 1000,
-		ResponseSize:  response.Len(),
-		RecordCount:   len(response.Answer),
-		CacheHit:      false,
-		CorrelationID: correlationID,
+		Timestamp:        time.Now(),
+		Level:            "INFO",
+		Hostname:         hostname,
+		Server:           server,
+		CircuitState:     r.breakers[server].GetState(),
+		Duration:         duration * 1000,
+		QueueTime:        time.Since(queueStart).Seconds() * 1000,
+		NetworkLatency:   networkLatency,
+		ProcessingTime:   processingTime * 1000,
+		ResponseSize:     response.Len(),
+		RecordCount:      len(response.Answer),
+		CacheHit:         false,
+		CacheTTL:         int64(ttl),
+		QueryType:        "A",
+		EDNSEnabled:      true,
+		DNSSECEnabled:    true,
+		RecursionDesired: true,
+		ResponseCode:     dns.RcodeToString[response.Rcode],
+		Authoritative:    response.Authoritative,
+		Truncated:        response.Truncated,
+		ResponseFlags:    flags,
+		CorrelationID:    correlationID,
+		Version:          "1.0.0",
+		Environment:      "production",
+		InstanceID:       os.Getenv("INSTANCE_ID"),
 	})
 
 	return dnsResponse, nil
