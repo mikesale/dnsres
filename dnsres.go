@@ -88,34 +88,37 @@ type ServerStats struct {
 	LastError string
 }
 
-// setupLoggers initializes the loggers
-func setupLoggers(logDir string) (*log.Logger, *log.Logger, error) {
+// LogEntry represents a structured log entry
+type LogEntry struct {
+	Timestamp     time.Time `json:"timestamp"`
+	Level         string    `json:"level"`
+	Hostname      string    `json:"hostname"`
+	Server        string    `json:"server"`
+	CircuitState  string    `json:"circuit_state"`
+	Duration      float64   `json:"duration_ms,omitempty"`
+	Error         string    `json:"error,omitempty"`
+	ResponseSize  int       `json:"response_size,omitempty"`
+	RecordCount   int       `json:"record_count,omitempty"`
+	CacheHit      bool      `json:"cache_hit,omitempty"`
+	CorrelationID string    `json:"correlation_id"`
+}
+
+// setupLogger initializes the structured logger
+func setupLogger(logDir string) (*log.Logger, error) {
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return nil, nil, fmt.Errorf("failed to create log directory: %w", err)
+		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	successLogFile, err := os.OpenFile(
-		filepath.Join(logDir, "dnsres-success.log"),
+	logFile, err := os.OpenFile(
+		filepath.Join(logDir, "dnsres.log"),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
 		0644,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open success log file: %w", err)
+		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
 
-	errorLogFile, err := os.OpenFile(
-		filepath.Join(logDir, "dnsres-error.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to open error log file: %w", err)
-	}
-
-	successLog := log.New(successLogFile, "", log.LstdFlags)
-	errorLog := log.New(errorLogFile, "", log.LstdFlags)
-
-	return successLog, errorLog, nil
+	return log.New(logFile, "", 0), nil
 }
 
 // DNSResolver represents a DNS resolution tool
@@ -125,8 +128,7 @@ type DNSResolver struct {
 	breakers   map[string]*circuitbreaker.CircuitBreaker
 	cache      *cache.ShardedCache
 	health     *health.HealthChecker
-	successLog *log.Logger
-	errorLog   *log.Logger
+	logger     *log.Logger
 	stats      *ResolutionStats
 }
 
@@ -136,10 +138,10 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	// Initialize loggers
-	successLog, errorLog, err := setupLoggers(config.LogDir)
+	// Initialize logger
+	logger, err := setupLogger(config.LogDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup loggers: %w", err)
+		return nil, fmt.Errorf("failed to setup logger: %w", err)
 	}
 
 	// Initialize client pool
@@ -176,10 +178,19 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		breakers:   breakers,
 		cache:      cache,
 		health:     healthChecker,
-		successLog: successLog,
-		errorLog:   errorLog,
+		logger:     logger,
 		stats:      stats,
 	}, nil
+}
+
+// logEvent logs a structured event
+func (r *DNSResolver) logEvent(entry LogEntry) {
+	jsonData, err := json.Marshal(entry)
+	if err != nil {
+		r.logger.Printf("Failed to marshal log entry: %v", err)
+		return
+	}
+	r.logger.Println(string(jsonData))
 }
 
 // Start begins the DNS resolution monitoring
@@ -201,12 +212,12 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 	// Start servers
 	go func() {
 		if err := healthServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			r.errorLog.Printf("Health server error: %v", err)
+			r.logger.Printf("Health server error: %v", err)
 		}
 	}()
 	go func() {
 		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			r.errorLog.Printf("Metrics server error: %v", err)
+			r.logger.Printf("Metrics server error: %v", err)
 		}
 	}()
 
@@ -216,10 +227,10 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := healthServer.Shutdown(shutdownCtx); err != nil {
-			r.errorLog.Printf("Health server shutdown error: %v", err)
+			r.logger.Printf("Health server shutdown error: %v", err)
 		}
 		if err := metricsServer.Shutdown(shutdownCtx); err != nil {
-			r.errorLog.Printf("Metrics server shutdown error: %v", err)
+			r.logger.Printf("Metrics server shutdown error: %v", err)
 		}
 	}()
 
@@ -260,12 +271,12 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 					defer serverWg.Done()
 					response, err := r.resolveWithServer(ctx, s, h)
 					if err != nil {
-						r.errorLog.Printf("Failed to resolve %s using %s: %v", h, s, err)
+						r.logger.Printf("Failed to resolve %s using %s: %v", h, s, err)
 						r.stats.Stats[s].Failures++
 						r.stats.Stats[s].LastError = err.Error()
 						return
 					}
-					r.successLog.Printf("Resolved %s using %s (state: %s)", h, s, r.breakers[s].GetState())
+					r.logger.Printf("Resolved %s using %s (state: %s)", h, s, r.breakers[s].GetState())
 					r.stats.Stats[s].Total++
 
 					responseMu.Lock()
@@ -280,7 +291,7 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 				consistent := dnsanalysis.CompareResponses(responses)
 				metrics.DNSResolutionConsistency.WithLabelValues(h).Set(boolToFloat64(consistent))
 				if !consistent {
-					r.errorLog.Printf("Inconsistent responses for %s", h)
+					r.logger.Printf("Inconsistent responses for %s", h)
 				}
 			}
 		}(hostname)
@@ -290,9 +301,22 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 
 // resolveWithServer resolves a hostname using a specific DNS server
 func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname string) (*dnsanalysis.DNSResponse, error) {
+	correlationID := fmt.Sprintf("%s-%s-%d", server, hostname, time.Now().UnixNano())
+	start := time.Now()
+
 	// Check cache first
 	if cached, ok := r.cache.Get(hostname); ok {
 		metrics.DNSResolutionCacheHit.WithLabelValues(server, hostname).Inc()
+		r.logEvent(LogEntry{
+			Timestamp:     time.Now(),
+			Level:         "INFO",
+			Hostname:      hostname,
+			Server:        server,
+			CircuitState:  r.breakers[server].GetState(),
+			Duration:      time.Since(start).Seconds() * 1000,
+			CacheHit:      true,
+			CorrelationID: correlationID,
+		})
 		return cached, nil
 	}
 	metrics.DNSResolutionCacheMiss.WithLabelValues(server, hostname).Inc()
@@ -300,13 +324,33 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	// Check circuit breaker
 	if !r.breakers[server].Allow() {
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "circuit_breaker").Inc()
-		return nil, fmt.Errorf("circuit breaker open for %s", server)
+		err := fmt.Errorf("circuit breaker open for %s", server)
+		r.logEvent(LogEntry{
+			Timestamp:     time.Now(),
+			Level:         "ERROR",
+			Hostname:      hostname,
+			Server:        server,
+			CircuitState:  r.breakers[server].GetState(),
+			Error:         err.Error(),
+			CorrelationID: correlationID,
+		})
+		return nil, err
 	}
 
 	// Get client from pool
 	client, err := r.clientPool.Get(server)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get client from pool: %w", err)
+		err = fmt.Errorf("failed to get client from pool: %w", err)
+		r.logEvent(LogEntry{
+			Timestamp:     time.Now(),
+			Level:         "ERROR",
+			Hostname:      hostname,
+			Server:        server,
+			CircuitState:  r.breakers[server].GetState(),
+			Error:         err.Error(),
+			CorrelationID: correlationID,
+		})
+		return nil, err
 	}
 	defer r.clientPool.Put(client)
 
@@ -318,13 +362,22 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	metrics.DNSResolutionTotal.WithLabelValues(server, hostname).Inc()
 
 	// Send query
-	start := time.Now()
 	response, _, err := client.Exchange(msg, server)
 	if err != nil {
 		r.breakers[server].RecordFailure()
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = err.Error()
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "query_error").Inc()
+		r.logEvent(LogEntry{
+			Timestamp:     time.Now(),
+			Level:         "ERROR",
+			Hostname:      hostname,
+			Server:        server,
+			CircuitState:  r.breakers[server].GetState(),
+			Duration:      time.Since(start).Seconds() * 1000,
+			Error:         err.Error(),
+			CorrelationID: correlationID,
+		})
 		return nil, fmt.Errorf("DNS query failed: %w", err)
 	}
 
@@ -339,7 +392,18 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = dns.RcodeToString[response.Rcode]
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, dns.RcodeToString[response.Rcode]).Inc()
-		return nil, fmt.Errorf("DNS query returned error code: %s", dns.RcodeToString[response.Rcode])
+		err := fmt.Errorf("DNS query returned error code: %s", dns.RcodeToString[response.Rcode])
+		r.logEvent(LogEntry{
+			Timestamp:     time.Now(),
+			Level:         "ERROR",
+			Hostname:      hostname,
+			Server:        server,
+			CircuitState:  r.breakers[server].GetState(),
+			Duration:      duration * 1000,
+			Error:         err.Error(),
+			CorrelationID: correlationID,
+		})
+		return nil, err
 	}
 
 	r.breakers[server].RecordSuccess()
@@ -364,6 +428,19 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 
 	// Cache the response
 	r.cache.Set(hostname, dnsResponse, time.Duration(ttl)*time.Second)
+
+	r.logEvent(LogEntry{
+		Timestamp:     time.Now(),
+		Level:         "INFO",
+		Hostname:      hostname,
+		Server:        server,
+		CircuitState:  r.breakers[server].GetState(),
+		Duration:      duration * 1000,
+		ResponseSize:  response.Len(),
+		RecordCount:   len(response.Answer),
+		CacheHit:      false,
+		CorrelationID: correlationID,
+	})
 
 	return dnsResponse, nil
 }

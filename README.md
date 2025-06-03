@@ -162,17 +162,33 @@ The tool exposes Prometheus metrics on port 9090. Available metrics include:
 
 ## Log Files
 
-The tool creates two log files:
+The tool creates a single log file `dnsres.log` that contains structured JSON logs for all events. Each log entry includes:
 
-1. `dnsres-success.log`: Contains successful resolution attempts
-2. `dnsres-error.log`: Contains failed resolution attempts
-
-Each log entry includes:
 - Timestamp
+- Log level (INFO/ERROR)
 - Hostname
 - DNS server used
 - Circuit breaker state
+- Duration (in milliseconds)
+- Response size (for successful queries)
+- Record count (for successful queries)
+- Cache hit status
 - Error message (for failed resolutions)
+- Correlation ID (for tracking related events)
+
+Example log entries:
+
+```json
+{"timestamp":"2024-03-14T10:00:00Z","level":"INFO","hostname":"example.com","server":"8.8.8.8","circuit_state":"closed","duration_ms":45.2,"response_size":123,"record_count":2,"cache_hit":false,"correlation_id":"8.8.8.8-example.com-1710417600000000000"}
+{"timestamp":"2024-03-14T10:00:01Z","level":"ERROR","hostname":"example.com","server":"1.1.1.1","circuit_state":"half-open","duration_ms":0,"error":"DNS query returned error code: NXDOMAIN","correlation_id":"1.1.1.1-example.com-1710417601000000000"}
+```
+
+The structured logging format makes it easy to:
+- Parse logs using standard JSON tools
+- Filter and search logs based on specific fields
+- Track related events using correlation IDs
+- Analyze performance metrics
+- Monitor system health
 
 ## Building from Source
 
