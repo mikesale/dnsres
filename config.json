@@ -1,0 +1,16 @@
+{
+  "hostnames": ["example.com", "google.com"],
+  "dns_servers": [
+    "8.8.8.8",
+    "1.1.1.1"
+  ],
+  "query_timeout": "5s",
+  "query_interval": "1m",
+  "failure_threshold": 5,
+  "reset_timeout": "30s",
+  "half_open_timeout": "5s",
+  "max_cache_ttl": "1h",
+  "health_port": 8080,
+  "metrics_port": 9090
+}
+
