@@ -244,8 +244,12 @@ git clone <repository-url>
 cd dnsres
 
 # Build the project
-go build -o dnsres
+make deps
+make all
 ```
+
+## Prometheus
+I admit I'm wandering in the dark with this, but with the Go integration and my previous time doing cloud monitoring at the big O I wanted to take a swing and this and get familiar with the package.
 
 ## Requirements
 
