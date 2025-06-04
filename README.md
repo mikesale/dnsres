@@ -30,33 +30,15 @@ What would I do next just for fun? If I want to have fun with it, I'd like to us
 - DNSSEC and EDNS support detection
 
 ## Installation
+I'm working on providing precompiled binaries, I just don't have anywhere to host them as of yet. 
 
-### macOS
+For now, make sure you have Go installed, clone the project, and then:
+
 ```bash
-# Intel Mac
-curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-darwin-amd64-v1.0.0.tar.gz | tar xz
-sudo mv dnsres-darwin-amd64 /usr/local/bin/dnsres
-
-# Apple Silicon
-curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-darwin-arm64-v1.0.0.tar.gz | tar xz
-sudo mv dnsres-darwin-arm64 /usr/local/bin/dnsres
+make deps
+make all
 ```
 
-### Linux
-```bash
-# AMD64
-curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-linux-amd64-v1.0.0.tar.gz | tar xz
-sudo mv dnsres-linux-amd64 /usr/local/bin/dnsres
-
-# ARM64
-curl -L https://github.com/mikesale/dnsres/releases/download/v1.0.0/dnsres-linux-arm64-v1.0.0.tar.gz | tar xz
-sudo mv dnsres-linux-arm64 /usr/local/bin/dnsres
-```
-
-### Windows
-1. Download `dnsres-windows-amd64-v1.0.0.zip`
-2. Extract the zip file
-3. Move `dnsres-windows-amd64.exe` to a directory in your PATH
 
 ## Configuration
 
