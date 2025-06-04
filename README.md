@@ -109,13 +109,13 @@ The tool is built with a modular architecture:
 
 ## Circuit Breaker Pattern
 
-The tool implements a circuit breaker pattern to prevent cascading failures and provide fault tolerance. Each DNS server has its own circuit breaker with three states:
+I wanted to explicitly implement a circuit breaker in Go as a test because I deal a LOT with APIs that can hit rate limits. Helping customers use OpenAI on a low tier, rate limits are constantly a problem. So the tool implements a circuit breaker pattern to prevent cascading failures and provide fault tolerance. Each DNS server has its own circuit breaker with three states:
 
 1. **Closed (Normal)**: The circuit is closed and requests are allowed through
 2. **Open (Failing)**: The circuit is open and requests are blocked
 3. **Half-Open (Testing)**: The circuit is testing if the service has recovered
 
-The circuit breaker will:
+The circuit breaker as configured in the core configuration json file will:
 - Open after `failure_threshold` consecutive failures
 - Wait `reset_timeout` before attempting to close
 - Require `failure_threshold` successful attempts in half-open state to fully close
