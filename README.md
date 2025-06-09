@@ -227,7 +227,7 @@ Example log entries:
 ```
 
 The structured logging format makes it easy to:
-- Parse logs using standard JSON tools
+- Parse logs using standard JSON tools and Prometheus
 - Filter and search logs based on specific fields
 - Track related events using correlation IDs
 - Analyze performance metrics
