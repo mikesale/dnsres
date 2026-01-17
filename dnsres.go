@@ -296,6 +296,9 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 	ticker := time.NewTicker(r.config.QueryInterval.Duration)
 	defer ticker.Stop()
 
+	// Run initial resolution immediately
+	r.resolveAll(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -436,7 +439,7 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 		})
 		return nil, err
 	}
-	defer r.clientPool.Put(client)
+	defer r.clientPool.Put(server, client)
 
 	// Create DNS message
 	msg := new(dns.Msg)
@@ -449,7 +452,7 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 
 	// Send query
 	networkStart := time.Now()
-	response, _, err := client.Exchange(msg, server)
+	response, _, err := client.ExchangeContext(ctx, msg, server)
 	networkLatency := time.Since(networkStart).Seconds() * 1000
 
 	if err != nil {

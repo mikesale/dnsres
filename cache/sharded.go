@@ -64,12 +64,16 @@ func (c *ShardedCache) Get(key string) (*dnsanalysis.DNSResponse, bool) {
 
 	if time.Now().After(entry.Expires) {
 		shard.mu.RUnlock()
+
 		shard.mu.Lock()
-		delete(shard.entries, key)
-		shard.size -= entry.Size
+		// Double check under write lock
+		if entry, ok := shard.entries[key]; ok && time.Now().After(entry.Expires) {
+			delete(shard.entries, key)
+			shard.size -= entry.Size
+			metrics.CacheMisses.Inc()
+		}
 		shard.mu.Unlock()
-		shard.mu.RLock()
-		metrics.CacheMisses.Inc()
+
 		return nil, false
 	}
 
@@ -174,6 +178,10 @@ func (c *ShardedCache) getShard(key string) *CacheShard {
 	hash := 0
 	for _, b := range []byte(key) {
 		hash = hash*31 + int(b)
+	}
+	// Ensure positive hash
+	if hash < 0 {
+		hash = -hash
 	}
 	return c.shards[hash%c.numShards]
 }

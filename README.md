@@ -35,7 +35,6 @@ I'm working on providing precompiled binaries, I just don't have anywhere to hos
 For now, make sure you have Go installed, clone the project, and then:
 
 ```bash
-make deps
 make all
 ```
 
@@ -50,8 +49,8 @@ The tool uses a `config.json` file for configuration. Here's an example:
   "dns_servers": ["8.8.8.8", "1.1.1.1"],
   "query_timeout": "5s",
   "query_interval": "1m",
-  "health_port": 8080,
-  "metrics_port": 9090,
+  "health_port": 8880,
+  "metrics_port": 9990,
   "log_dir": "logs",
   "circuit_breaker": {
     "threshold": 5,
@@ -69,8 +68,8 @@ The tool uses a `config.json` file for configuration. Here's an example:
 - `dns_servers`: List of DNS server IP addresses
 - `query_timeout`: Timeout for each DNS query (e.g., "5s", "10s")
 - `query_interval`: Interval between resolution checks (e.g., "1m", "5m")
-- `health_port`: Port for health check endpoint (default: 8080)
-- `metrics_port`: Port for Prometheus metrics (default: 9090)
+- `health_port`: Port for health check endpoint (default: 8880)
+- `metrics_port`: Port for Prometheus metrics (default: 9990)
 - `log_dir`: Directory for log files (default: "logs")
 - `circuit_breaker`: Circuit breaker configuration
   - `threshold`: Number of failures before opening (default: 5)
@@ -140,7 +139,7 @@ Hour              | DNS Server     | Total    | Fails    | Fail %
 
 ## Metrics
 
-The tool exposes Prometheus metrics on port 9090. Available metrics include:
+The tool exposes Prometheus metrics on port 9990. Available metrics include:
 
 - `dns_resolution_total`: Total number of DNS resolution attempts
 - `dns_resolution_success`: Number of successful DNS resolutions

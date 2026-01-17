@@ -53,7 +53,7 @@ func (p *ClientPool) Get(server string) (*dns.Client, error) {
 }
 
 // Put returns a client to the pool
-func (p *ClientPool) Put(client *dns.Client) {
+func (p *ClientPool) Put(server string, client *dns.Client) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -61,11 +61,11 @@ func (p *ClientPool) Put(client *dns.Client) {
 	client.Timeout = p.Timeout
 
 	// Add to pool if not at max size
-	if len(p.clients[""]) < p.MaxSize {
-		p.clients[""] = append(p.clients[""], client)
-		metrics.DNSResolutionProtocol.WithLabelValues("", "", "returned").Inc()
+	if len(p.clients[server]) < p.MaxSize {
+		p.clients[server] = append(p.clients[server], client)
+		metrics.DNSResolutionProtocol.WithLabelValues(server, "", "returned").Inc()
 	} else {
-		metrics.DNSResolutionProtocol.WithLabelValues("", "", "dropped").Inc()
+		metrics.DNSResolutionProtocol.WithLabelValues(server, "", "dropped").Inc()
 	}
 }
 
