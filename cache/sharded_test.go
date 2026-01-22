@@ -42,3 +42,35 @@ func TestShardedCacheEviction(t *testing.T) {
 		t.Fatalf("expected eviction to keep 1 entry, got %d", entries)
 	}
 }
+
+func TestShardedCacheStats(t *testing.T) {
+	cache := NewShardedCache(1024, 2)
+
+	responseA := &dnsanalysis.DNSResponse{
+		Server:    "8.8.8.8:53",
+		Hostname:  "a.example.com",
+		Addresses: []string{"1.1.1.1"},
+	}
+	responseB := &dnsanalysis.DNSResponse{
+		Server:    "1.1.1.1:53",
+		Hostname:  "b.example.com",
+		Addresses: []string{"2.2.2.2"},
+	}
+
+	cache.Set("a.example.com", responseA, time.Minute)
+	cache.Set("b.example.com", responseB, time.Minute)
+
+	stats := cache.GetStats()
+	if stats["entries"].(int) != 2 {
+		t.Fatalf("expected 2 entries, got %v", stats["entries"])
+	}
+	if stats["size"].(int64) <= 0 {
+		t.Fatalf("expected positive cache size, got %v", stats["size"])
+	}
+	if stats["max_size"].(int64) != 1024 {
+		t.Fatalf("expected max size 1024, got %v", stats["max_size"])
+	}
+	if stats["num_shards"].(int) != 2 {
+		t.Fatalf("expected num shards 2, got %v", stats["num_shards"])
+	}
+}

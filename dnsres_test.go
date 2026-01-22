@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,5 +89,58 @@ func TestResolveWithServerUsesCache(t *testing.T) {
 	}
 	if got != entry {
 		t.Fatalf("expected cached response, got %+v", got)
+	}
+}
+
+func TestNormalizeInstrumentationLevel(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty",
+			input:    "   ",
+			expected: "none",
+		},
+		{
+			name:     "lowercase",
+			input:    "LoW",
+			expected: "low",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeInstrumentationLevel(tt.input)
+			if got != tt.expected {
+				t.Fatalf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGenerateReport(t *testing.T) {
+	stats := &ResolutionStats{
+		StartTime: time.Date(2025, 1, 2, 15, 4, 0, 0, time.UTC),
+		Stats: map[string]*ServerStats{
+			"8.8.8.8:53": {Total: 10, Failures: 2},
+			"1.1.1.1:53": {Total: 0, Failures: 0},
+		},
+	}
+	resolver := &DNSResolver{stats: stats}
+
+	report := resolver.GenerateReport()
+	if !strings.Contains(report, "8.8.8.8:53") {
+		t.Fatalf("expected report to include server, got %s", report)
+	}
+	if !strings.Contains(report, "20.00%") {
+		t.Fatalf("expected failure percentage in report, got %s", report)
+	}
+	if !strings.Contains(report, "1.1.1.1:53") {
+		t.Fatalf("expected report to include zero-total server, got %s", report)
+	}
+	if !strings.Contains(report, "  0.00%") {
+		t.Fatalf("expected zero percent for empty totals, got %s", report)
 	}
 }

@@ -216,6 +216,13 @@ type DNSResolver struct {
 	appLog               *log.Logger
 	stats                *ResolutionStats
 	instrumentationLevel instrumentation.Level
+	resolveAllFunc       func(context.Context)
+	getClient            func(string) (dnsClient, error)
+	putClient            func(string, dnsClient)
+}
+
+type dnsClient interface {
+	ExchangeContext(context.Context, *dns.Msg, string) (*dns.Msg, time.Duration, error)
 }
 
 // NewDNSResolver creates a new DNS resolver
@@ -275,6 +282,20 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		appLog:               appLog,
 		stats:                stats,
 		instrumentationLevel: level,
+		resolveAllFunc:       nil,
+		getClient:            nil,
+		putClient:            nil,
+	}
+	resolver.resolveAllFunc = resolver.resolveAll
+	resolver.getClient = func(server string) (dnsClient, error) {
+		return clientPool.Get(server)
+	}
+	resolver.putClient = func(server string, client dnsClient) {
+		dnsClient, ok := client.(*dns.Client)
+		if !ok {
+			return
+		}
+		clientPool.Put(server, dnsClient)
 	}
 
 	resolver.appLogf(
@@ -337,20 +358,24 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 	}()
 
 	// Start resolution loop
-	r.resolveAll(ctx) // Run initial resolution immediately
+	r.resolveAllFunc(ctx) // Run initial resolution immediately
 	fmt.Printf("Resolution loop started (interval %s)\n", r.config.QueryInterval.Duration)
 	r.appLogf(instrumentation.Low, "resolution loop started interval=%s", r.config.QueryInterval.Duration)
 
 	ticker := time.NewTicker(r.config.QueryInterval.Duration)
 	defer ticker.Stop()
 
+	return r.runLoop(ctx, ticker.C)
+}
+
+func (r *DNSResolver) runLoop(ctx context.Context, ticks <-chan time.Time) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-ticker.C:
+		case <-ticks:
 			r.appLogf(instrumentation.Low, "resolution tick fired interval=%s", r.config.QueryInterval.Duration)
-			r.resolveAll(ctx)
+			r.resolveAllFunc(ctx)
 		}
 	}
 }
@@ -439,12 +464,12 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	}
 
 	// Get client from pool
-	client, err := r.clientPool.Get(server)
+	client, err := r.getClient(server)
 	if err != nil {
 		r.appLogf(instrumentation.Medium, "client pool get failed server=%s err=%v", server, err)
 		return nil, fmt.Errorf("failed to get client from pool: %w", err)
 	}
-	defer r.clientPool.Put(server, client)
+	defer r.putClient(server, client)
 
 	// Create DNS message
 	msg := new(dns.Msg)
@@ -555,7 +580,10 @@ func (r *DNSResolver) GenerateReport() string {
 		stats := r.stats.Stats[key]
 		server := key
 		hour := r.stats.StartTime.Format("2006-01-02 15:04")
-		failPercent := float64(stats.Failures) / float64(stats.Total) * 100
+		failPercent := 0.0
+		if stats.Total > 0 {
+			failPercent = float64(stats.Failures) / float64(stats.Total) * 100
+		}
 		report.WriteString(fmt.Sprintf("%s | %-12s | %-8d | %-8d | %6.2f%%\n",
 			hour, server, stats.Total, stats.Failures, failPercent))
 	}
