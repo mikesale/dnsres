@@ -53,6 +53,7 @@ The tool uses a `config.json` file for configuration. Here's an example:
   "health_port": 8880,
   "metrics_port": 9990,
   "log_dir": "logs",
+  "instrumentation_level": "none",
   "circuit_breaker": {
     "threshold": 5,
     "timeout": "30s"
@@ -72,6 +73,7 @@ The tool uses a `config.json` file for configuration. Here's an example:
 - `health_port`: Port for health check endpoint (default: 8880)
 - `metrics_port`: Port for Prometheus metrics (default: 9990)
 - `log_dir`: Directory for log files (default: "logs")
+- `instrumentation_level`: Debug instrumentation level (`none`, `low`, `medium`, `high`, `critical`)
 - `circuit_breaker`: Circuit breaker configuration
   - `threshold`: Number of failures before opening (default: 5)
   - `timeout`: Time to wait before resetting (default: "30s")

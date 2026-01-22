@@ -23,6 +23,7 @@ import (
 	"dnsres/dnsanalysis"
 	"dnsres/dnspool"
 	"dnsres/health"
+	"dnsres/instrumentation"
 	"dnsres/metrics"
 
 	"github.com/miekg/dns"
@@ -56,14 +57,15 @@ func (d *Duration) UnmarshalJSON(b []byte) error {
 
 // Config represents the configuration for the DNS resolver
 type Config struct {
-	Hostnames      []string `json:"hostnames"`
-	DNSServers     []string `json:"dns_servers"`
-	QueryTimeout   Duration `json:"query_timeout"`
-	QueryInterval  Duration `json:"query_interval"`
-	HealthPort     int      `json:"health_port"`
-	MetricsPort    int      `json:"metrics_port"`
-	LogDir         string   `json:"log_dir"`
-	CircuitBreaker struct {
+	Hostnames            []string `json:"hostnames"`
+	DNSServers           []string `json:"dns_servers"`
+	QueryTimeout         Duration `json:"query_timeout"`
+	QueryInterval        Duration `json:"query_interval"`
+	HealthPort           int      `json:"health_port"`
+	MetricsPort          int      `json:"metrics_port"`
+	LogDir               string   `json:"log_dir"`
+	InstrumentationLevel string   `json:"instrumentation_level"`
+	CircuitBreaker       struct {
 		Threshold int      `json:"threshold"`
 		Timeout   Duration `json:"timeout"`
 	} `json:"circuit_breaker"`
@@ -94,6 +96,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Cache.MaxSize <= 0 {
 		return fmt.Errorf("invalid cache max size")
+	}
+	if _, err := instrumentation.ParseLevel(c.InstrumentationLevel); err != nil {
+		return fmt.Errorf("invalid instrumentation level: %w", err)
 	}
 	return nil
 }
@@ -200,19 +205,21 @@ func setupLoggers(logDir string) (*log.Logger, *log.Logger, *log.Logger, error) 
 
 // DNSResolver represents a DNS resolution tool
 type DNSResolver struct {
-	config     *Config
-	clientPool *dnspool.ClientPool
-	breakers   map[string]*circuitbreaker.CircuitBreaker
-	cache      *cache.ShardedCache
-	health     *health.HealthChecker
-	successLog *log.Logger
-	errorLog   *log.Logger
-	appLog     *log.Logger
-	stats      *ResolutionStats
+	config               *Config
+	clientPool           *dnspool.ClientPool
+	breakers             map[string]*circuitbreaker.CircuitBreaker
+	cache                *cache.ShardedCache
+	health               *health.HealthChecker
+	successLog           *log.Logger
+	errorLog             *log.Logger
+	appLog               *log.Logger
+	stats                *ResolutionStats
+	instrumentationLevel instrumentation.Level
 }
 
 // NewDNSResolver creates a new DNS resolver
 func NewDNSResolver(config *Config) (*DNSResolver, error) {
+	config.InstrumentationLevel = normalizeInstrumentationLevel(config.InstrumentationLevel)
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
@@ -240,7 +247,12 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 	cache := cache.NewShardedCache(config.Cache.MaxSize, 16)
 
 	// Initialize health checker
-	healthChecker := health.NewHealthChecker(config.DNSServers)
+	level, err := instrumentation.ParseLevel(config.InstrumentationLevel)
+	if err != nil {
+		return nil, fmt.Errorf("invalid instrumentation level: %w", err)
+	}
+
+	healthChecker := health.NewHealthChecker(config.DNSServers, appLog, level)
 
 	// Initialize stats
 	stats := &ResolutionStats{
@@ -251,17 +263,30 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		stats.Stats[server] = &ServerStats{}
 	}
 
-	return &DNSResolver{
-		config:     config,
-		clientPool: clientPool,
-		breakers:   breakers,
-		cache:      cache,
-		health:     healthChecker,
-		successLog: successLog,
-		errorLog:   errorLog,
-		appLog:     appLog,
-		stats:      stats,
-	}, nil
+	resolver := &DNSResolver{
+		config:               config,
+		clientPool:           clientPool,
+		breakers:             breakers,
+		cache:                cache,
+		health:               healthChecker,
+		successLog:           successLog,
+		errorLog:             errorLog,
+		appLog:               appLog,
+		stats:                stats,
+		instrumentationLevel: level,
+	}
+
+	resolver.appLogf(
+		instrumentation.Low,
+		"resolver initialized hostnames=%d servers=%d interval=%s timeout=%s instrumentation=%s",
+		len(config.Hostnames),
+		len(config.DNSServers),
+		config.QueryInterval.Duration,
+		config.QueryTimeout.Duration,
+		level.String(),
+	)
+
+	return resolver, nil
 }
 
 // Start begins the DNS resolution monitoring
@@ -279,6 +304,9 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
+
+	r.appLogf(instrumentation.Low, "health server starting on :%d", r.config.HealthPort)
+	r.appLogf(instrumentation.Low, "metrics server starting on :%d", r.config.MetricsPort)
 
 	// Start servers
 	go func() {
@@ -307,6 +335,7 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 
 	// Start resolution loop
 	r.resolveAll(ctx) // Run initial resolution immediately
+	r.appLogf(instrumentation.Low, "resolution loop started interval=%s", r.config.QueryInterval.Duration)
 
 	ticker := time.NewTicker(r.config.QueryInterval.Duration)
 	defer ticker.Stop()
@@ -323,6 +352,13 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 
 // resolveAll resolves all hostnames against all DNS servers concurrently
 func (r *DNSResolver) resolveAll(ctx context.Context) {
+	r.appLogf(
+		instrumentation.Low,
+		"resolution cycle start hostnames=%d servers=%d",
+		len(r.config.Hostnames),
+		len(r.config.DNSServers),
+	)
+
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 10) // Limit concurrent resolutions
 
@@ -364,12 +400,14 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 				consistent := dnsanalysis.CompareResponses(responses)
 				metrics.DNSResolutionConsistency.WithLabelValues(h).Set(boolToFloat64(consistent))
 				if !consistent {
+					r.appLogf(instrumentation.High, "inconsistent responses hostname=%s", h)
 					r.errorLog.Printf("Inconsistent responses for %s", h)
 				}
 			}
 		}(hostname)
 	}
 	wg.Wait()
+	r.appLogf(instrumentation.Low, "resolution cycle complete")
 }
 
 // resolveWithServer resolves a hostname using a specific DNS server
@@ -377,19 +415,23 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	// Check cache first
 	if cached, ok := r.cache.Get(hostname); ok {
 		metrics.DNSResolutionCacheHit.WithLabelValues(server, hostname).Inc()
+		r.appLogf(instrumentation.Low, "cache hit hostname=%s server=%s", hostname, server)
 		return cached, nil
 	}
 	metrics.DNSResolutionCacheMiss.WithLabelValues(server, hostname).Inc()
+	r.appLogf(instrumentation.Low, "cache miss hostname=%s server=%s", hostname, server)
 
 	// Check circuit breaker
 	if !r.breakers[server].Allow() {
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "circuit_breaker").Inc()
+		r.appLogf(instrumentation.Medium, "circuit breaker open server=%s", server)
 		return nil, fmt.Errorf("circuit breaker open for %s", server)
 	}
 
 	// Get client from pool
 	client, err := r.clientPool.Get(server)
 	if err != nil {
+		r.appLogf(instrumentation.Medium, "client pool get failed server=%s err=%v", server, err)
 		return nil, fmt.Errorf("failed to get client from pool: %w", err)
 	}
 	defer r.clientPool.Put(server, client)
@@ -406,17 +448,19 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	// Send query
 	start := time.Now()
 	response, _, err := client.ExchangeContext(ctx, msg, server)
+	elapsed := time.Since(start)
 
 	if err != nil {
 		r.breakers[server].RecordFailure()
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = err.Error()
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "query_error").Inc()
+		r.appLogf(instrumentation.Medium, "DNS query failed hostname=%s server=%s err=%v", hostname, server, err)
 		return nil, fmt.Errorf("DNS query failed: %w", err)
 	}
 
 	// Record metrics
-	duration := time.Since(start).Seconds()
+	duration := elapsed.Seconds()
 	metrics.DNSResolutionDuration.WithLabelValues(server, hostname).Observe(duration)
 	metrics.DNSResponseSize.WithLabelValues(server, hostname).Observe(float64(response.Len()))
 
@@ -426,12 +470,26 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 		r.stats.Stats[server].Failures++
 		r.stats.Stats[server].LastError = dns.RcodeToString[response.Rcode]
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, dns.RcodeToString[response.Rcode]).Inc()
+		r.appLogf(
+			instrumentation.Medium,
+			"DNS response error hostname=%s server=%s rcode=%s",
+			hostname,
+			server,
+			dns.RcodeToString[response.Rcode],
+		)
 		return nil, fmt.Errorf("DNS query returned error code: %s", dns.RcodeToString[response.Rcode])
 	}
 
 	r.breakers[server].RecordSuccess()
 	r.stats.Stats[server].Total++
 	metrics.DNSResolutionSuccess.WithLabelValues(server, hostname).Inc()
+	r.appLogf(
+		instrumentation.High,
+		"DNS response ok hostname=%s server=%s duration=%s",
+		hostname,
+		server,
+		elapsed,
+	)
 
 	// Create DNS response
 	ttl := getMinTTL(response)
@@ -503,6 +561,13 @@ func boolToFloat64(b bool) float64 {
 	return 0
 }
 
+func (r *DNSResolver) appLogf(level instrumentation.Level, format string, args ...any) {
+	if r.appLog == nil || r.instrumentationLevel < level {
+		return
+	}
+	r.appLog.Printf(format, args...)
+}
+
 func main() {
 	// Parse command line flags
 	configFile := flag.String("config", "config.json", "Path to configuration file")
@@ -563,6 +628,7 @@ func loadConfig(path string) (*Config, error) {
 	if err := json.NewDecoder(file).Decode(&config); err != nil {
 		return nil, fmt.Errorf("failed to decode config file: %v", err)
 	}
+	config.InstrumentationLevel = normalizeInstrumentationLevel(config.InstrumentationLevel)
 
 	// Ensure DNS servers have ports
 	for i, server := range config.DNSServers {
@@ -601,5 +667,15 @@ func validateConfig(cfg *Config) error {
 	if cfg.Cache.MaxSize <= 0 {
 		return errors.New("cache max size must be positive")
 	}
+	if _, err := instrumentation.ParseLevel(cfg.InstrumentationLevel); err != nil {
+		return fmt.Errorf("invalid instrumentation level: %w", err)
+	}
 	return nil
+}
+
+func normalizeInstrumentationLevel(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return "none"
+	}
+	return strings.ToLower(strings.TrimSpace(value))
 }

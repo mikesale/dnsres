@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"dnsres/instrumentation"
 	"dnsres/metrics"
 )
 
@@ -23,13 +24,17 @@ type HealthChecker struct {
 	servers []string
 	status  map[string]bool
 	mu      sync.RWMutex
+	appLog  *log.Logger
+	level   instrumentation.Level
 }
 
 // NewHealthChecker creates a new health checker
-func NewHealthChecker(servers []string) *HealthChecker {
+func NewHealthChecker(servers []string, appLog *log.Logger, level instrumentation.Level) *HealthChecker {
 	hc := &HealthChecker{
 		servers: servers,
 		status:  make(map[string]bool),
+		appLog:  appLog,
+		level:   level,
 	}
 	go hc.checkLoop()
 	return hc
@@ -87,6 +92,7 @@ func (hc *HealthChecker) checkServers() {
 		// Simple TCP connection check
 		conn, err := net.DialTimeout("tcp", server, 5*time.Second)
 		if err != nil {
+			hc.logf(instrumentation.Medium, "health check failed server=%s err=%v", server, err)
 			hc.status[server] = false
 			metrics.DNSResolutionFailure.WithLabelValues(server, "", "health_check").Inc()
 			continue
@@ -98,4 +104,9 @@ func (hc *HealthChecker) checkServers() {
 	}
 }
 
-// Helper functions
+func (hc *HealthChecker) logf(level instrumentation.Level, format string, args ...any) {
+	if hc.appLog == nil || hc.level < level {
+		return
+	}
+	hc.appLog.Printf(format, args...)
+}

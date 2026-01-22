@@ -155,6 +155,8 @@ Care is taken to keep lock scopes small and avoid I/O while locked.
 - DNS servers missing a port are normalized to include `:53`.
 - Query timeout and interval are configurable via `Duration` in JSON.
 - Health and metrics servers are configured by port number.
+- Instrumentation logging defaults to `none` and is controlled by
+  `instrumentation_level` in `config.json`.
 
 ## Extending the System
 
