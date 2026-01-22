@@ -85,7 +85,6 @@ func (c *ShardedCache) Get(key string) (*dnsanalysis.DNSResponse, bool) {
 func (c *ShardedCache) Set(key string, response *dnsanalysis.DNSResponse, ttl time.Duration) {
 	shard := c.getShard(key)
 	shard.mu.Lock()
-	defer shard.mu.Unlock()
 
 	// Calculate entry size
 	size := estimateSize(response)
@@ -110,6 +109,8 @@ func (c *ShardedCache) Set(key string, response *dnsanalysis.DNSResponse, ttl ti
 	// Add new entry
 	shard.entries[key] = entry
 	shard.size += size
+	shard.mu.Unlock()
+
 	metrics.CacheSize.Set(float64(c.getTotalEntries()))
 }
 
@@ -117,14 +118,16 @@ func (c *ShardedCache) Set(key string, response *dnsanalysis.DNSResponse, ttl ti
 func (c *ShardedCache) Delete(key string) {
 	shard := c.getShard(key)
 	shard.mu.Lock()
-	defer shard.mu.Unlock()
 
 	if entry, ok := shard.entries[key]; ok {
 		shard.size -= entry.Size
 		delete(shard.entries, key)
 		metrics.CacheEvictions.Inc()
+		shard.mu.Unlock()
 		metrics.CacheSize.Set(float64(c.getTotalEntries()))
+		return
 	}
+	shard.mu.Unlock()
 }
 
 // Clear removes all values from the cache

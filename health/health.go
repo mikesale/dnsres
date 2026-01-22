@@ -59,6 +59,7 @@ func (hc *HealthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // checkLoop periodically checks the health of DNS servers
 func (hc *HealthChecker) checkLoop() {
+	hc.checkServers() // Run initial check immediately
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
