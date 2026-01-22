@@ -99,9 +99,3 @@ func (hc *HealthChecker) checkServers() {
 }
 
 // Helper functions
-func boolToFloat64(b bool) float64 {
-	if b {
-		return 1
-	}
-	return 0
-}
