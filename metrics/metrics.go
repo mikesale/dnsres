@@ -48,6 +48,14 @@ var (
 		[]string{"hostname"},
 	)
 
+	DNSResolutionCycleDuration = promauto.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "dns_resolution_cycle_duration_seconds",
+			Help:    "Duration of a full resolution cycle in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+
 	DNSResolutionTTL = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "dns_resolution_ttl_seconds",

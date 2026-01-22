@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -305,6 +306,8 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 		WriteTimeout: 10 * time.Second,
 	}
 
+	fmt.Printf("Health endpoint listening on :%d\n", r.config.HealthPort)
+	fmt.Printf("Metrics endpoint listening on :%d\n", r.config.MetricsPort)
 	r.appLogf(instrumentation.Low, "health server starting on :%d", r.config.HealthPort)
 	r.appLogf(instrumentation.Low, "metrics server starting on :%d", r.config.MetricsPort)
 
@@ -335,6 +338,7 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 
 	// Start resolution loop
 	r.resolveAll(ctx) // Run initial resolution immediately
+	fmt.Printf("Resolution loop started (interval %s)\n", r.config.QueryInterval.Duration)
 	r.appLogf(instrumentation.Low, "resolution loop started interval=%s", r.config.QueryInterval.Duration)
 
 	ticker := time.NewTicker(r.config.QueryInterval.Duration)
@@ -345,6 +349,7 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
+			r.appLogf(instrumentation.Low, "resolution tick fired interval=%s", r.config.QueryInterval.Duration)
 			r.resolveAll(ctx)
 		}
 	}
@@ -352,6 +357,8 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 
 // resolveAll resolves all hostnames against all DNS servers concurrently
 func (r *DNSResolver) resolveAll(ctx context.Context) {
+	start := time.Now()
+	fmt.Printf("Resolution cycle starting (hostnames %d, servers %d)\n", len(r.config.Hostnames), len(r.config.DNSServers))
 	r.appLogf(
 		instrumentation.Low,
 		"resolution cycle start hostnames=%d servers=%d",
@@ -407,7 +414,10 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 		}(hostname)
 	}
 	wg.Wait()
-	r.appLogf(instrumentation.Low, "resolution cycle complete")
+	duration := time.Since(start)
+	metrics.DNSResolutionCycleDuration.Observe(duration.Seconds())
+	fmt.Printf("Resolution cycle complete (duration %s)\n", duration)
+	r.appLogf(instrumentation.Low, "resolution cycle complete duration=%s", duration)
 }
 
 // resolveWithServer resolves a hostname using a specific DNS server
@@ -576,27 +586,36 @@ func main() {
 	flag.Parse()
 
 	// Load configuration
+	fmt.Printf("Loading configuration from %s\n", *configFile)
 	config, err := loadConfig(*configFile)
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+	fmt.Println("Configuration loaded")
 
 	// Override hostname if specified
 	if *hostname != "" {
 		config.Hostnames = []string{*hostname}
+		fmt.Printf("Hostname override enabled: %s\n", *hostname)
 	}
 
 	// Create resolver
+	fmt.Println("Validating configuration")
 	resolver, err := NewDNSResolver(config)
 	if err != nil {
 		log.Fatalf("Failed to create DNS resolver: %v", err)
 	}
+	fmt.Println("Resolver initialized")
 
 	// Handle report mode
 	if *reportMode {
+		fmt.Println("Report mode enabled; generating report")
 		fmt.Println(resolver.GenerateReport())
 		return
 	}
+
+	fmt.Printf("Monitoring %d hostnames across %d DNS servers every %s\n", len(config.Hostnames), len(config.DNSServers), config.QueryInterval.Duration)
+	fmt.Println("Press q then Enter to quit")
 
 	// Setup context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
@@ -606,8 +625,21 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		<-sigChan
+		sig := <-sigChan
+		fmt.Printf("Shutdown signal received (%s)\n", sig)
 		cancel()
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			input := strings.TrimSpace(scanner.Text())
+			if strings.EqualFold(input, "q") {
+				fmt.Println("Quit requested; shutting down")
+				cancel()
+				return
+			}
+		}
 	}()
 
 	// Start resolution
