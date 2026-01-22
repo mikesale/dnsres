@@ -20,24 +20,25 @@ What would I do next just for fun? If I want to have fun with it, I'd like to us
 - Sharded cache implementation for high-performance caching
 - Circuit breaker pattern for fault tolerance
 - Configurable query timeout and interval
-- Detailed logging of successful and failed resolutions
+- Separate logs for resolution success, failures, and application health
 - Statistical reporting of resolution success rates
 - Graceful shutdown handling
 - Configurable via JSON configuration file
 - Prometheus metrics for monitoring
 - Sophisticated DNS error handling
 - Health check endpoint for monitoring
-- DNSSEC and EDNS support detection
 
 ## Installation
+
 I'm working on providing precompiled binaries, I just don't have anywhere to host them as of yet. 
 
 For now, make sure you have Go installed, clone the project, and then:
 
 ```bash
-make all
+make build
 ```
 
+**Note:** The build process automatically disables CGO (`CGO_ENABLED=0`) to ensure a stable, static binary that avoids kernel hangs on macOS systems.
 
 ## Configuration
 
@@ -65,7 +66,7 @@ The tool uses a `config.json` file for configuration. Here's an example:
 ### Configuration Options
 
 - `hostnames`: List of hostnames to monitor
-- `dns_servers`: List of DNS server IP addresses
+- `dns_servers`: List of DNS server IP addresses. If no port is specified, port 53 is automatically appended (e.g., `8.8.8.8` becomes `8.8.8.8:53`).
 - `query_timeout`: Timeout for each DNS query (e.g., "5s", "10s")
 - `query_interval`: Interval between resolution checks (e.g., "1m", "5m")
 - `health_port`: Port for health check endpoint (default: 8880)
@@ -119,12 +120,10 @@ dnsres -config config.json -report
 
 ## Sample Output
 
-### Monitor Output
+### Monitor Output (Success Log)
 ```
-2024/03/14 10:00:00 Resolved example.com using 8.8.8.8 (state: normal)
-2024/03/14 10:00:00 Resolved example.com using 1.1.1.1 (state: normal)
-2024/03/14 10:01:00 Resolution error for example.com using 8.8.8.8 (state: circuit open): lookup example.com: no such host
-2024/03/14 10:01:00 Resolved example.com using 1.1.1.1 (state: circuit half-open)
+2024/03/14 10:00:00 Resolved example.com using 8.8.8.8:53 (state: closed)
+2024/03/14 10:00:00 Resolved example.com using 1.1.1.1:53 (state: closed)
 ```
 
 ### Statistics Report
@@ -150,90 +149,31 @@ The tool exposes Prometheus metrics on port 9990. Available metrics include:
 
 ## Log Files
 
-The tool creates a single log file `dnsres.log` that contains structured JSON logs for all events. Each log entry includes:
+The tool maintains three separate log files in the configured `log_dir` to separate concerns and simplify monitoring.
 
-### Basic Information
-- `timestamp`: When the event occurred
-- `level`: Log level (INFO/ERROR)
-- `hostname`: The domain being resolved
-- `server`: The DNS server used
-- `correlation_id`: Unique ID to track related events
+### 1. `dnsres-success.log`
+Contains a clean audit trail of successful DNS resolutions. This log is intended for long-term auditing and traffic analysis.
 
-### System Context
-- `version`: The version of the DNS resolver
-- `environment`: Development/Staging/Production
-- `instance_id`: Unique identifier for the running instance
-
-### DNS Query Details
-- `query_type`: The type of DNS query (A, AAAA, MX, etc.)
-- `edns_enabled`: Whether EDNS was used
-- `dnssec_enabled`: Whether DNSSEC was enabled
-- `recursion_desired`: Whether recursion was requested
-
-### Performance Metrics
-- `duration_ms`: Total time taken for the resolution
-- `queue_time_ms`: Time spent waiting for a client from the pool
-- `network_latency_ms`: Raw network latency (excluding processing time)
-- `processing_time_ms`: Time spent processing the response
-- `cache_ttl_seconds`: Time-to-live of cached entries
-
-### Response Analysis
-- `response_code`: The DNS response code (NOERROR, NXDOMAIN, etc.)
-- `response_size`: Size of the DNS response in bytes
-- `record_count`: Number of records in the response
-- `authoritative`: Whether the response was authoritative
-- `truncated`: Whether the response was truncated
-- `response_flags`: Additional DNS response flags (AA, TC, RD, RA, AD, CD)
-
-### Circuit Breaker and Cache
-- `circuit_state`: Current state of the circuit breaker
-- `cache_hit`: Whether the response came from cache
-
-### Error Information
-- `error`: Error message (for failed queries)
-- `error_type`: Type of error (circuit_breaker, client_pool, query_error, dns_error)
-
-Example log entries:
-
-```json
-{
-  "timestamp": "2024-03-14T10:00:00Z",
-  "level": "INFO",
-  "hostname": "example.com",
-  "server": "8.8.8.8",
-  "correlation_id": "8.8.8.8-example.com-1710417600000000000",
-  "version": "1.0.0",
-  "environment": "production",
-  "instance_id": "dnsres-1",
-  "query_type": "A",
-  "edns_enabled": true,
-  "dnssec_enabled": true,
-  "recursion_desired": true,
-  "duration_ms": 45.2,
-  "queue_time_ms": 0.5,
-  "network_latency_ms": 30.1,
-  "processing_time_ms": 14.6,
-  "cache_ttl_seconds": 300,
-  "response_code": "NOERROR",
-  "response_size": 123,
-  "record_count": 2,
-  "authoritative": false,
-  "truncated": false,
-  "response_flags": ["RD", "RA"],
-  "circuit_state": "closed",
-  "cache_hit": false
-}
+**Format:**
+```
+2024/03/14 10:00:00 Resolved example.com using 8.8.8.8:53 (state: closed)
 ```
 
-The structured logging format makes it easy to:
-- Parse logs using standard JSON tools and Prometheus
-- Filter and search logs based on specific fields
-- Track related events using correlation IDs
-- Analyze performance metrics
-- Monitor system health
-- Debug DNS resolution issues
-- Track cache effectiveness
-- Monitor circuit breaker behavior
+### 2. `dnsres-error.log`
+Contains details of failed DNS resolutions. This log is empty when the system and targets are healthy.
+
+**Format:**
+```
+2024/03/14 10:01:00 Failed to resolve example.com using 8.8.8.8:53: dial udp 8.8.8.8:53: i/o timeout
+```
+
+### 3. `dnsres-app.log`
+Contains internal application health events, such as startup sequences, HTTP server status (health/metrics ports), configuration errors, and shutdown events. Monitor this file to ensure the *binary itself* is healthy.
+
+**Format:**
+```
+2024/03/14 10:00:00 Health server error: listen tcp :8880: bind: address already in use
+```
 
 ## Building from Source
 
@@ -242,9 +182,8 @@ The structured logging format makes it easy to:
 git clone <repository-url>
 cd dnsres
 
-# Build the project
-make deps
-make all
+# Build the project (creates static binary 'dnsres')
+make build
 ```
 
 ## Prometheus
