@@ -1,6 +1,7 @@
 package health
 
 import (
+	"log"
 	"net"
 	"net/http"
 	"strings"
@@ -50,10 +51,14 @@ func (hc *HealthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if healthy {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("healthy"))
+		if _, err := w.Write([]byte("healthy")); err != nil {
+			log.Printf("health response write failed: %v", err)
+		}
 	} else {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("unhealthy"))
+		if _, err := w.Write([]byte("unhealthy")); err != nil {
+			log.Printf("health response write failed: %v", err)
+		}
 	}
 }
 
