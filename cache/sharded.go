@@ -54,10 +54,10 @@ func NewShardedCache(maxSize int64, numShards int) *ShardedCache {
 func (c *ShardedCache) Get(key string) (*dnsanalysis.DNSResponse, bool) {
 	shard := c.getShard(key)
 	shard.mu.RLock()
-	defer shard.mu.RUnlock()
 
 	entry, ok := shard.entries[key]
 	if !ok {
+		shard.mu.RUnlock()
 		metrics.CacheMisses.Inc()
 		return nil, false
 	}
@@ -78,6 +78,7 @@ func (c *ShardedCache) Get(key string) (*dnsanalysis.DNSResponse, bool) {
 	}
 
 	metrics.CacheHits.Inc()
+	shard.mu.RUnlock()
 	return entry.Response, true
 }
 
