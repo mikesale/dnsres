@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"dnsres/cache"
+	"dnsres/dnsanalysis"
 )
 
 func TestValidateConfigInstrumentationLevel(t *testing.T) {
@@ -69,5 +73,20 @@ func TestLoadConfigNormalizesDNSServerPorts(t *testing.T) {
 	}
 	if cfg.DNSServers[1] != "1.1.1.1:54" {
 		t.Fatalf("expected existing port preserved, got %s", cfg.DNSServers[1])
+	}
+}
+
+func TestResolveWithServerUsesCache(t *testing.T) {
+	entry := &dnsanalysis.DNSResponse{Hostname: "example.com"}
+	shardedCache := cache.NewShardedCache(1024, 1)
+	shardedCache.Set("example.com", entry, time.Minute)
+
+	resolver := &DNSResolver{cache: shardedCache}
+	got, err := resolver.resolveWithServer(context.Background(), "8.8.8.8:53", "example.com")
+	if err != nil {
+		t.Fatalf("resolveWithServer returned error: %v", err)
+	}
+	if got != entry {
+		t.Fatalf("expected cached response, got %+v", got)
 	}
 }
