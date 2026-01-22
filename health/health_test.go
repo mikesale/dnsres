@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"dnsres/instrumentation"
+	"dnsres/metrics"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 func TestHealthCheckerTCPProbe(t *testing.T) {
@@ -83,5 +86,32 @@ func TestHealthCheckerLoopStarts(t *testing.T) {
 		if hc == nil {
 			t.Fatalf("unexpected nil health checker")
 		}
+	}
+}
+
+func TestHealthCheckerMetrics(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to open listener: %v", err)
+	}
+	defer listener.Close()
+
+	goodAddr := listener.Addr().String()
+	badAddr := "127.0.0.1:1"
+
+	beforeSuccess := testutil.ToFloat64(metrics.DNSResolutionSuccess.WithLabelValues(goodAddr, ""))
+	beforeFailure := testutil.ToFloat64(metrics.DNSResolutionFailure.WithLabelValues(badAddr, "", "health_check"))
+
+	hc := NewHealthChecker([]string{goodAddr, badAddr}, nil, instrumentation.None)
+	hc.checkServers()
+
+	afterSuccess := testutil.ToFloat64(metrics.DNSResolutionSuccess.WithLabelValues(goodAddr, ""))
+	afterFailure := testutil.ToFloat64(metrics.DNSResolutionFailure.WithLabelValues(badAddr, "", "health_check"))
+
+	if afterSuccess <= beforeSuccess {
+		t.Fatalf("expected success metric to increment")
+	}
+	if afterFailure <= beforeFailure {
+		t.Fatalf("expected failure metric to increment")
 	}
 }
