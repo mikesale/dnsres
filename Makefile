@@ -2,6 +2,7 @@
 
 # Variables
 BINARY_NAME=dnsres
+BINARY_TUI_NAME=dnsres-tui
 VERSION=$(shell git describe --tags --always --dirty)
 LDFLAGS=-ldflags "-X main.Version=$(VERSION)"
 BUILD_DIR=build
@@ -13,7 +14,12 @@ all: clean build
 # Build the application
 build:
 	@echo "Building $(BINARY_NAME)..."
-	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BINARY_NAME)
+	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BINARY_NAME) ./cmd/dnsres
+
+# Build the TUI application
+build-tui:
+	@echo "Building $(BINARY_TUI_NAME)..."
+	CGO_ENABLED=0 go build $(LDFLAGS) -o $(BINARY_TUI_NAME) ./cmd/dnsres-tui
 
 # Cross-compilation targets
 build-all: clean
@@ -98,6 +104,7 @@ help:
 	@echo "Available targets:"
 	@echo "  all          - Clean and build the application"
 	@echo "  build        - Build the application"
+	@echo "  build-tui    - Build the TUI application"
 	@echo "  build-all    - Build for all supported platforms"
 	@echo "  release      - Create release packages for all platforms"
 	@echo "  test         - Run tests"

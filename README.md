@@ -38,6 +38,12 @@ For now, make sure you have Go installed, clone the project, and then:
 make build
 ```
 
+To build the interactive TUI binary:
+
+```bash
+make build-tui
+```
+
 **Note:** The build process automatically disables CGO (`CGO_ENABLED=0`) to ensure a stable, static binary that avoids kernel hangs on macOS systems.
 
 ## Configuration
@@ -119,6 +125,16 @@ dnsres -config examples/config.json -host example.com
 
 # Generate statistics report
 dnsres -config examples/config.json -report
+```
+
+To run the terminal UI:
+
+```bash
+# Interactive TUI
+dnsres-tui -config examples/config.json
+
+# Override hostname
+dnsres-tui -config examples/config.json -host example.com
 ```
 
 ## Sample Output

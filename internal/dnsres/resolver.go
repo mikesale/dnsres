@@ -3,8 +3,10 @@ package dnsres
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -30,12 +32,14 @@ type DNSResolver struct {
 	successLog            *log.Logger
 	errorLog              *log.Logger
 	appLog                *log.Logger
+	output                io.Writer
 	stats                 *ResolutionStats
 	instrumentationLevel  instrumentation.Level
 	resolveAllFunc        func(context.Context)
 	resolveWithServerFunc func(context.Context, string, string) (*dnsanalysis.DNSResponse, error)
 	getClient             func(string) (dnsClient, error)
 	putClient             func(string, dnsClient)
+	events                *eventBus
 }
 
 type dnsClient interface {
@@ -97,12 +101,14 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		successLog:            successLog,
 		errorLog:              errorLog,
 		appLog:                appLog,
+		output:                os.Stdout,
 		stats:                 stats,
 		instrumentationLevel:  level,
 		resolveAllFunc:        nil,
 		resolveWithServerFunc: nil,
 		getClient:             nil,
 		putClient:             nil,
+		events:                newEventBus(),
 	}
 	resolver.resolveAllFunc = resolver.resolveAll
 	resolver.resolveWithServerFunc = resolver.resolveWithServer
@@ -130,6 +136,27 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 	return resolver, nil
 }
 
+// SubscribeEvents returns a channel of resolver activity events.
+func (r *DNSResolver) SubscribeEvents(buffer int) (<-chan ResolverEvent, func()) {
+	if r.events == nil {
+		return nil, func() {}
+	}
+	return r.events.subscribe(buffer)
+}
+
+// SetOutputWriter controls where resolver status output is written.
+func (r *DNSResolver) SetOutputWriter(writer io.Writer) {
+	r.output = writer
+}
+
+// HealthSnapshot returns the latest health check status.
+func (r *DNSResolver) HealthSnapshot() map[string]bool {
+	if r.health == nil {
+		return map[string]bool{}
+	}
+	return r.health.StatusSnapshot()
+}
+
 // Start begins the DNS resolution monitoring
 func (r *DNSResolver) Start(ctx context.Context) error {
 	// Create HTTP servers
@@ -146,8 +173,8 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 		WriteTimeout: 10 * time.Second,
 	}
 
-	fmt.Printf("Health endpoint listening on :%d\n", r.config.HealthPort)
-	fmt.Printf("Metrics endpoint listening on :%d\n", r.config.MetricsPort)
+	r.outputf("Health endpoint listening on :%d\n", r.config.HealthPort)
+	r.outputf("Metrics endpoint listening on :%d\n", r.config.MetricsPort)
 	r.appLogf(instrumentation.Low, "health server starting on :%d", r.config.HealthPort)
 	r.appLogf(instrumentation.Low, "metrics server starting on :%d", r.config.MetricsPort)
 
@@ -178,7 +205,7 @@ func (r *DNSResolver) Start(ctx context.Context) error {
 
 	// Start resolution loop
 	r.resolveAllFunc(ctx) // Run initial resolution immediately
-	fmt.Printf("Resolution loop started (interval %s)\n", r.config.QueryInterval.Duration)
+	r.outputf("Resolution loop started (interval %s)\n", r.config.QueryInterval.Duration)
 	r.appLogf(instrumentation.Low, "resolution loop started interval=%s", r.config.QueryInterval.Duration)
 
 	ticker := time.NewTicker(r.config.QueryInterval.Duration)
@@ -202,7 +229,13 @@ func (r *DNSResolver) runLoop(ctx context.Context, ticks <-chan time.Time) error
 // resolveAll resolves all hostnames against all DNS servers concurrently
 func (r *DNSResolver) resolveAll(ctx context.Context) {
 	start := time.Now()
-	fmt.Printf("Resolution cycle starting (hostnames %d, servers %d)\n", len(r.config.Hostnames), len(r.config.DNSServers))
+	r.outputf("Resolution cycle starting (hostnames %d, servers %d)\n", len(r.config.Hostnames), len(r.config.DNSServers))
+	r.emitEvent(ResolverEvent{
+		Type:          EventCycleStart,
+		Time:          start,
+		HostnameCount: len(r.config.Hostnames),
+		ServerCount:   len(r.config.DNSServers),
+	})
 	r.appLogf(
 		instrumentation.Low,
 		"resolution cycle start hostnames=%d servers=%d",
@@ -251,6 +284,13 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 				consistent := dnsanalysis.CompareResponses(responses)
 				metrics.DNSResolutionConsistency.WithLabelValues(h).Set(boolToFloat64(consistent))
 				if !consistent {
+					consistentValue := false
+					r.emitEvent(ResolverEvent{
+						Type:       EventInconsistent,
+						Time:       time.Now(),
+						Hostname:   h,
+						Consistent: &consistentValue,
+					})
 					r.appLogf(instrumentation.High, "inconsistent responses hostname=%s", h)
 					r.errorLog.Printf("Inconsistent responses for %s", h)
 				}
@@ -260,7 +300,14 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 	wg.Wait()
 	duration := time.Since(start)
 	metrics.DNSResolutionCycleDuration.Observe(duration.Seconds())
-	fmt.Printf("Resolution cycle complete (duration %s)\n", duration)
+	r.outputf("Resolution cycle complete (duration %s)\n", duration)
+	r.emitEvent(ResolverEvent{
+		Type:          EventCycleComplete,
+		Time:          time.Now(),
+		Duration:      duration,
+		HostnameCount: len(r.config.Hostnames),
+		ServerCount:   len(r.config.DNSServers),
+	})
 	r.appLogf(instrumentation.Low, "resolution cycle complete duration=%s", duration)
 }
 
@@ -270,6 +317,14 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	if cached, ok := r.cache.Get(hostname); ok {
 		metrics.DNSResolutionCacheHit.WithLabelValues(server, hostname).Inc()
 		r.appLogf(instrumentation.Low, "cache hit hostname=%s server=%s", hostname, server)
+		r.emitEvent(ResolverEvent{
+			Type:      EventResolveSuccess,
+			Time:      time.Now(),
+			Hostname:  hostname,
+			Server:    server,
+			Addresses: append([]string(nil), cached.Addresses...),
+			Source:    "cache",
+		})
 		return cached, nil
 	}
 	metrics.DNSResolutionCacheMiss.WithLabelValues(server, hostname).Inc()
@@ -279,6 +334,14 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	if !r.breakers[server].Allow() {
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "circuit_breaker").Inc()
 		r.appLogf(instrumentation.Medium, "circuit breaker open server=%s", server)
+		r.emitEvent(ResolverEvent{
+			Type:     EventResolveFailure,
+			Time:     time.Now(),
+			Hostname: hostname,
+			Server:   server,
+			Error:    "circuit breaker open",
+			Source:   "circuit_breaker",
+		})
 		return nil, fmt.Errorf("circuit breaker open for %s", server)
 	}
 
@@ -286,6 +349,14 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	client, err := r.getClient(server)
 	if err != nil {
 		r.appLogf(instrumentation.Medium, "client pool get failed server=%s err=%v", server, err)
+		r.emitEvent(ResolverEvent{
+			Type:     EventResolveFailure,
+			Time:     time.Now(),
+			Hostname: hostname,
+			Server:   server,
+			Error:    err.Error(),
+			Source:   "client_pool",
+		})
 		return nil, fmt.Errorf("failed to get client from pool: %w", err)
 	}
 	defer r.putClient(server, client)
@@ -310,6 +381,15 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 		r.stats.Stats[server].LastError = err.Error()
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "query_error").Inc()
 		r.appLogf(instrumentation.Medium, "DNS query failed hostname=%s server=%s err=%v", hostname, server, err)
+		r.emitEvent(ResolverEvent{
+			Type:     EventResolveFailure,
+			Time:     time.Now(),
+			Hostname: hostname,
+			Server:   server,
+			Duration: elapsed,
+			Error:    err.Error(),
+			Source:   "query_error",
+		})
 		return nil, fmt.Errorf("DNS query failed: %w", err)
 	}
 
@@ -331,6 +411,15 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 			server,
 			dns.RcodeToString[response.Rcode],
 		)
+		r.emitEvent(ResolverEvent{
+			Type:     EventResolveFailure,
+			Time:     time.Now(),
+			Hostname: hostname,
+			Server:   server,
+			Duration: elapsed,
+			Error:    dns.RcodeToString[response.Rcode],
+			Source:   "rcode",
+		})
 		return nil, fmt.Errorf("DNS query returned error code: %s", dns.RcodeToString[response.Rcode])
 	}
 
@@ -364,6 +453,16 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 	// Cache the response
 	r.cache.Set(hostname, dnsResponse, time.Duration(ttl)*time.Second)
 
+	r.emitEvent(ResolverEvent{
+		Type:      EventResolveSuccess,
+		Time:      time.Now(),
+		Hostname:  hostname,
+		Server:    server,
+		Duration:  elapsed,
+		Addresses: append([]string(nil), dnsResponse.Addresses...),
+		Source:    "query",
+	})
+
 	return dnsResponse, nil
 }
 
@@ -395,4 +494,18 @@ func (r *DNSResolver) appLogf(level instrumentation.Level, format string, args .
 		return
 	}
 	r.appLog.Printf(format, args...)
+}
+
+func (r *DNSResolver) emitEvent(event ResolverEvent) {
+	if r.events == nil {
+		return
+	}
+	r.events.publish(event)
+}
+
+func (r *DNSResolver) outputf(format string, args ...any) {
+	if r.output == nil {
+		return
+	}
+	fmt.Fprintf(r.output, format, args...)
 }

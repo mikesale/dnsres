@@ -67,6 +67,18 @@ func (hc *HealthChecker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// StatusSnapshot returns a copy of the server health map.
+func (hc *HealthChecker) StatusSnapshot() map[string]bool {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+
+	snapshot := make(map[string]bool, len(hc.status))
+	for server, status := range hc.status {
+		snapshot[server] = status
+	}
+	return snapshot
+}
+
 // checkLoop periodically checks the health of DNS servers
 func (hc *HealthChecker) checkLoop() {
 	hc.checkServers() // Run initial check immediately
