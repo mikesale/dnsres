@@ -32,7 +32,7 @@ WORKDIR /app
 COPY --from=builder /app/dnsres .
 
 # Copy config file
-COPY config.json .
+COPY examples/config.json ./config.json
 
 # Create log directory
 RUN mkdir -p logs

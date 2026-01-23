@@ -42,7 +42,8 @@ make build
 
 ## Configuration
 
-The tool uses a `config.json` file for configuration. Here's an example:
+The tool uses a `config.json` file for configuration. See the example at
+`examples/config.json`:
 
 ```json
 {
@@ -111,13 +112,13 @@ After installation, you can use the DNS resolver tool:
 
 ```bash
 # Basic usage
-dnsres -config config.json
+dnsres -config examples/config.json
 
 # Override hostname
-dnsres -config config.json -host example.com
+dnsres -config examples/config.json -host example.com
 
 # Generate statistics report
-dnsres -config config.json -report
+dnsres -config examples/config.json -report
 ```
 
 ## Sample Output

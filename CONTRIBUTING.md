@@ -62,7 +62,8 @@ dnsres/
 ├── health/          # Health check functionality
 ├── metrics/         # Prometheus metrics
 ├── dnsres.go        # Main application
-├── config.json      # Configuration file
+├── examples         # Example configuration
+│   └── config.json  # Sample configuration file
 └── README.md        # Project documentation
 ```
 

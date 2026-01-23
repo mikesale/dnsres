@@ -44,7 +44,8 @@ dnsres/
 ├── pkg/
 │   └── dnsanalysis/
 │       └── dnsanalysis.go
-├── config.json
+├── examples
+│   └── config.json
 ├── go.mod
 ├── go.sum
 ├── Makefile
