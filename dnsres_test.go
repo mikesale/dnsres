@@ -1,4 +1,4 @@
-package main
+package dnsres
 
 import (
 	"context"
@@ -62,9 +62,9 @@ func TestLoadConfigNormalizesDNSServerPorts(t *testing.T) {
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	cfg, err := loadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
-		t.Fatalf("loadConfig returned error: %v", err)
+		t.Fatalf("LoadConfig returned error: %v", err)
 	}
 	if len(cfg.DNSServers) != 2 {
 		t.Fatalf("expected 2 DNS servers, got %d", len(cfg.DNSServers))

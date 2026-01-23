@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"bufio"
@@ -9,9 +9,11 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+
+	"dnsres"
 )
 
-func run() error {
+func Run() error {
 	// Parse command line flags
 	configFile := flag.String("config", "config.json", "Path to configuration file")
 	reportMode := flag.Bool("report", false, "Generate statistics report")
@@ -20,7 +22,7 @@ func run() error {
 
 	// Load configuration
 	fmt.Printf("Loading configuration from %s\n", *configFile)
-	config, err := loadConfig(*configFile)
+	config, err := dnsres.LoadConfig(*configFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
 	}
@@ -34,7 +36,7 @@ func run() error {
 
 	// Create resolver
 	fmt.Println("Validating configuration")
-	resolver, err := NewDNSResolver(config)
+	resolver, err := dnsres.NewDNSResolver(config)
 	if err != nil {
 		return fmt.Errorf("failed to create DNS resolver: %w", err)
 	}

@@ -1,4 +1,4 @@
-package main
+package dnsres
 
 import (
 	"encoding/json"
@@ -85,8 +85,8 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// loadConfig loads the configuration from a file
-func loadConfig(path string) (*Config, error) {
+// LoadConfig loads the configuration from a file
+func LoadConfig(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open config file: %v", err)

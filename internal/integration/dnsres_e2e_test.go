@@ -66,7 +66,7 @@ func runEndToEnd(t *testing.T, interval string, runDuration time.Duration, expec
 		t.Fatalf("failed to write config: %v", err)
 	}
 
-	buildCmd := exec.Command("go", "build", "-o", binPath, "./")
+	buildCmd := exec.Command("go", "build", "-o", binPath, "./cmd/dnsres")
 	buildCmd.Env = os.Environ()
 	cwd, err := os.Getwd()
 	if err != nil {
