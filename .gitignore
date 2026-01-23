@@ -5,6 +5,7 @@
 *.so
 *.dylib
 dnsres
+dnsres-tui
 !internal/dnsres/
 !internal/dnsres/**
 
@@ -37,6 +38,8 @@ logs/
 # Build artifacts
 bin/
 dist/
+build/
+release/
 
 # Environment files
 .env
