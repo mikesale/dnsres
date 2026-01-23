@@ -21,6 +21,20 @@ func TestDNSResEndToEnd(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
+	runEndToEnd(t, "30s", 5*time.Minute, "30s", 3)
+}
+
+func TestDNSResEndToEndShort(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	runEndToEnd(t, "10s", time.Minute, "10s", 3)
+}
+
+func runEndToEnd(t *testing.T, interval string, runDuration time.Duration, expectedInterval string, minCycles int) {
+	t.Helper()
+
 	tempDir := t.TempDir()
 	binPath := filepath.Join(tempDir, "dnsres")
 	logDir := filepath.Join(tempDir, "logs")
@@ -30,7 +44,7 @@ func TestDNSResEndToEnd(t *testing.T) {
 		"hostnames":             []string{"google.com"},
 		"dns_servers":           []string{"8.8.8.8", "1.1.1.1"},
 		"query_timeout":         "5s",
-		"query_interval":        "30s",
+		"query_interval":        interval,
 		"health_port":           18880,
 		"metrics_port":          19990,
 		"log_dir":               logDir,
@@ -54,11 +68,16 @@ func TestDNSResEndToEnd(t *testing.T) {
 
 	buildCmd := exec.Command("go", "build", "-o", binPath, "./")
 	buildCmd.Env = os.Environ()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	buildCmd.Dir = filepath.Dir(filepath.Dir(cwd))
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("build failed: %v\n%s", err, string(output))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute+30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), runDuration+30*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, binPath, "-config", configPath)
@@ -112,7 +131,7 @@ func TestDNSResEndToEnd(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(5 * time.Minute):
+	case <-time.After(runDuration):
 		_ = cmd.Process.Signal(os.Interrupt)
 	case <-ctx.Done():
 		if ctx.Err() != context.Canceled {
@@ -136,11 +155,11 @@ func TestDNSResEndToEnd(t *testing.T) {
 	if !strings.Contains(stdout, "Resolver initialized") {
 		t.Fatalf("expected resolver initialized output, got:\n%s", stdout)
 	}
-	if !strings.Contains(stdout, "Resolution loop started (interval 30s)") {
+	if !strings.Contains(stdout, "Resolution loop started (interval "+expectedInterval+")") {
 		t.Fatalf("expected loop start output, got:\n%s", stdout)
 	}
-	if cycleStarts < 3 || cycleCompletes < 3 {
-		t.Fatalf("expected at least 3 cycles, got starts=%d completes=%d", cycleStarts, cycleCompletes)
+	if cycleStarts < minCycles || cycleCompletes < minCycles {
+		t.Fatalf("expected at least %d cycles, got starts=%d completes=%d", minCycles, cycleStarts, cycleCompletes)
 	}
 
 	appLogPath := filepath.Join(logDir, "dnsres-app.log")
@@ -164,7 +183,7 @@ func TestDNSResEndToEnd(t *testing.T) {
 	if !strings.Contains(appLogText, "resolution cycle complete") {
 		t.Fatalf("expected resolution cycle complete in app log")
 	}
-	if !strings.Contains(appLogText, "resolution tick fired interval=30s") {
+	if !strings.Contains(appLogText, "resolution tick fired interval="+expectedInterval) {
 		t.Fatalf("expected resolution tick in app log")
 	}
 }
