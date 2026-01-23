@@ -9,7 +9,7 @@ and log files. The test is opt-in and intended for one-off runs, not CI.
 Run the test with the integration build tag:
 
 ```bash
-go test -tags=integration ./tests/integration -run TestDNSResEndToEnd -count=1
+go test -tags=integration ./internal/integration -run TestDNSResEndToEnd -count=1
 ```
 
 Notes:
