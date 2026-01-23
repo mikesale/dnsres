@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"strings"
 
 	"dnsres/internal/dnsres"
 
@@ -17,13 +18,26 @@ func Run() error {
 	hostname := flag.String("host", "", "Override hostname from config file")
 	flag.Parse()
 
-	config, err := dnsres.LoadConfig(*configFile)
-	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+	args := flag.Args()
+	var positionalHost string
+	if len(args) > 0 {
+		positionalHost = strings.TrimSpace(args[0])
 	}
 
-	if *hostname != "" {
+	config, err := dnsres.LoadConfig(*configFile)
+	if err != nil {
+		fmt.Printf("Config load failed (%s); using built-in defaults\n", err)
+		config = dnsres.DefaultConfig()
+	}
+
+	if positionalHost != "" {
+		config.Hostnames = []string{positionalHost}
+	} else if *hostname != "" {
 		config.Hostnames = []string{*hostname}
+	}
+
+	if len(config.Hostnames) == 0 {
+		return fmt.Errorf("hostname required: provide a domain as the first argument or use -host")
 	}
 
 	resolver, err := dnsres.NewDNSResolver(config)

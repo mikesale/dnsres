@@ -86,6 +86,9 @@ Returns Prometheus metrics for the DNS resolver.
 # Run with default config
 ./dnsres
 
+# Configless usage (defaults + CLI hostname)
+./dnsres example.com
+
 # Override hostname
 ./dnsres -host example.com
 
@@ -171,4 +174,4 @@ Returns Prometheus metrics for the DNS resolver.
     "state": "circuit_open"
   }
 }
-``` 
+```

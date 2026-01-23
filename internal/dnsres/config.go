@@ -56,6 +56,27 @@ type Config struct {
 	} `json:"cache"`
 }
 
+// DefaultConfig returns a base configuration with built-in defaults.
+func DefaultConfig() *Config {
+	config := &Config{}
+	config.Hostnames = []string{}
+	config.DNSServers = []string{
+		"8.8.8.8:53",
+		"1.1.1.1:53",
+		"9.9.9.9:53",
+	}
+	config.QueryTimeout = Duration{Duration: 5 * time.Second}
+	config.QueryInterval = Duration{Duration: 30 * time.Second}
+	config.HealthPort = 8880
+	config.MetricsPort = 9990
+	config.LogDir = "logs"
+	config.InstrumentationLevel = "none"
+	config.CircuitBreaker.Threshold = 5
+	config.CircuitBreaker.Timeout = Duration{Duration: 30 * time.Second}
+	config.Cache.MaxSize = 1000
+	return config
+}
+
 // Validate validates the configuration
 func (c *Config) Validate() error {
 	if len(c.Hostnames) == 0 {

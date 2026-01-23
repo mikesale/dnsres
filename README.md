@@ -120,6 +120,9 @@ After installation, you can use the DNS resolver tool:
 # Basic usage
 dnsres -config examples/config.json
 
+# Configless usage (defaults + CLI hostname)
+dnsres example.com
+
 # Override hostname
 dnsres -config examples/config.json -host example.com
 
@@ -132,6 +135,9 @@ To run the terminal UI:
 ```bash
 # Interactive TUI
 dnsres-tui -config examples/config.json
+
+# Configless usage (defaults + CLI hostname)
+dnsres-tui example.com
 
 # Override hostname
 dnsres-tui -config examples/config.json -host example.com

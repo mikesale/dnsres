@@ -20,18 +20,33 @@ func Run() error {
 	hostname := flag.String("host", "", "Override hostname from config file")
 	flag.Parse()
 
+	args := flag.Args()
+	var positionalHost string
+	if len(args) > 0 {
+		positionalHost = strings.TrimSpace(args[0])
+	}
+
 	// Load configuration
 	fmt.Printf("Loading configuration from %s\n", *configFile)
 	config, err := dnsres.LoadConfig(*configFile)
 	if err != nil {
-		return fmt.Errorf("failed to load configuration: %w", err)
+		fmt.Printf("Config load failed (%s); using built-in defaults\n", err)
+		config = dnsres.DefaultConfig()
+	} else {
+		fmt.Println("Configuration loaded")
 	}
-	fmt.Println("Configuration loaded")
 
 	// Override hostname if specified
-	if *hostname != "" {
+	if positionalHost != "" {
+		config.Hostnames = []string{positionalHost}
+		fmt.Printf("Hostname set from CLI: %s\n", positionalHost)
+	} else if *hostname != "" {
 		config.Hostnames = []string{*hostname}
 		fmt.Printf("Hostname override enabled: %s\n", *hostname)
+	}
+
+	if len(config.Hostnames) == 0 {
+		return fmt.Errorf("hostname required: provide a domain as the first argument or use -host")
 	}
 
 	// Create resolver
