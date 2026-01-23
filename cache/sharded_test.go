@@ -74,3 +74,28 @@ func TestShardedCacheStats(t *testing.T) {
 		t.Fatalf("expected num shards 2, got %v", stats["num_shards"])
 	}
 }
+
+func TestShardedCacheEvictsOldest(t *testing.T) {
+	cache := NewShardedCache(50, 1)
+
+	responseA := &dnsanalysis.DNSResponse{
+		Server:    "8.8.8.8:53",
+		Hostname:  "old.example.com",
+		Addresses: []string{"1.1.1.1"},
+	}
+	responseB := &dnsanalysis.DNSResponse{
+		Server:    "1.1.1.1:53",
+		Hostname:  "new.example.com",
+		Addresses: []string{"2.2.2.2"},
+	}
+
+	cache.Set("old.example.com", responseA, 5*time.Second)
+	cache.Set("new.example.com", responseB, 10*time.Second)
+
+	if _, ok := cache.Get("old.example.com"); ok {
+		t.Fatalf("expected oldest entry evicted")
+	}
+	if _, ok := cache.Get("new.example.com"); !ok {
+		t.Fatalf("expected newest entry retained")
+	}
+}

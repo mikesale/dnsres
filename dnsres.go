@@ -206,19 +206,20 @@ func setupLoggers(logDir string) (*log.Logger, *log.Logger, *log.Logger, error) 
 
 // DNSResolver represents a DNS resolution tool
 type DNSResolver struct {
-	config               *Config
-	clientPool           *dnspool.ClientPool
-	breakers             map[string]*circuitbreaker.CircuitBreaker
-	cache                *cache.ShardedCache
-	health               *health.HealthChecker
-	successLog           *log.Logger
-	errorLog             *log.Logger
-	appLog               *log.Logger
-	stats                *ResolutionStats
-	instrumentationLevel instrumentation.Level
-	resolveAllFunc       func(context.Context)
-	getClient            func(string) (dnsClient, error)
-	putClient            func(string, dnsClient)
+	config                *Config
+	clientPool            *dnspool.ClientPool
+	breakers              map[string]*circuitbreaker.CircuitBreaker
+	cache                 *cache.ShardedCache
+	health                *health.HealthChecker
+	successLog            *log.Logger
+	errorLog              *log.Logger
+	appLog                *log.Logger
+	stats                 *ResolutionStats
+	instrumentationLevel  instrumentation.Level
+	resolveAllFunc        func(context.Context)
+	resolveWithServerFunc func(context.Context, string, string) (*dnsanalysis.DNSResponse, error)
+	getClient             func(string) (dnsClient, error)
+	putClient             func(string, dnsClient)
 }
 
 type dnsClient interface {
@@ -272,21 +273,23 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 	}
 
 	resolver := &DNSResolver{
-		config:               config,
-		clientPool:           clientPool,
-		breakers:             breakers,
-		cache:                cache,
-		health:               healthChecker,
-		successLog:           successLog,
-		errorLog:             errorLog,
-		appLog:               appLog,
-		stats:                stats,
-		instrumentationLevel: level,
-		resolveAllFunc:       nil,
-		getClient:            nil,
-		putClient:            nil,
+		config:                config,
+		clientPool:            clientPool,
+		breakers:              breakers,
+		cache:                 cache,
+		health:                healthChecker,
+		successLog:            successLog,
+		errorLog:              errorLog,
+		appLog:                appLog,
+		stats:                 stats,
+		instrumentationLevel:  level,
+		resolveAllFunc:        nil,
+		resolveWithServerFunc: nil,
+		getClient:             nil,
+		putClient:             nil,
 	}
 	resolver.resolveAllFunc = resolver.resolveAll
+	resolver.resolveWithServerFunc = resolver.resolveWithServer
 	resolver.getClient = func(server string) (dnsClient, error) {
 		return clientPool.Get(server)
 	}
@@ -410,7 +413,7 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 				serverWg.Add(1)
 				go func(s string) {
 					defer serverWg.Done()
-					response, err := r.resolveWithServer(ctx, s, h)
+					response, err := r.resolveWithServerFunc(ctx, s, h)
 					if err != nil {
 						r.errorLog.Printf("Failed to resolve %s using %s: %v", h, s, err)
 						r.stats.Stats[s].Failures++

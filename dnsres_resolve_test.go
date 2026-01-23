@@ -9,8 +9,10 @@ import (
 
 	"dnsres/cache"
 	"dnsres/circuitbreaker"
+	"dnsres/metrics"
 
 	"github.com/miekg/dns"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 type fakeDNSClient struct {
@@ -112,5 +114,58 @@ func TestResolveWithServerRcodeError(t *testing.T) {
 	}
 	if resolver.stats.Stats[server].Failures != 1 {
 		t.Fatalf("expected failures incremented, got %d", resolver.stats.Stats[server].Failures)
+	}
+}
+
+func TestResolveWithServerSuccessUpdatesMetrics(t *testing.T) {
+	server := "9.9.9.9:53"
+	response := new(dns.Msg)
+	response.SetQuestion(dns.Fqdn("example.com"), dns.TypeA)
+	response.Answer = append(response.Answer, &dns.A{
+		Hdr: dns.RR_Header{
+			Name:   dns.Fqdn("example.com"),
+			Rrtype: dns.TypeA,
+			Class:  dns.ClassINET,
+			Ttl:    300,
+		},
+		A: []byte{1, 1, 1, 1},
+	})
+
+	fake := &fakeDNSClient{response: response}
+	resolver := &DNSResolver{
+		breakers: map[string]*circuitbreaker.CircuitBreaker{
+			server: circuitbreaker.NewCircuitBreaker(2, time.Minute, server),
+		},
+		cache: cache.NewShardedCache(1024, 1),
+		stats: &ResolutionStats{Stats: map[string]*ServerStats{server: {}}},
+		getClient: func(string) (dnsClient, error) {
+			return fake, nil
+		},
+		putClient: func(string, dnsClient) {},
+	}
+
+	beforeSuccess := testutil.ToFloat64(metrics.DNSResolutionSuccess.WithLabelValues(server, "example.com"))
+	resp, err := resolver.resolveWithServer(context.Background(), server, "example.com")
+	if err != nil {
+		t.Fatalf("expected success, got %v", err)
+	}
+	if len(resp.Addresses) != 1 || resp.Addresses[0] != "1.1.1.1" {
+		t.Fatalf("unexpected response addresses: %+v", resp.Addresses)
+	}
+	if resp.TTL != 300 {
+		t.Fatalf("expected TTL 300, got %d", resp.TTL)
+	}
+	if resolver.stats.Stats[server].Total != 1 {
+		t.Fatalf("expected total incremented, got %d", resolver.stats.Stats[server].Total)
+	}
+	if resolver.stats.Stats[server].Failures != 0 {
+		t.Fatalf("expected no failures, got %d", resolver.stats.Stats[server].Failures)
+	}
+	if _, ok := resolver.cache.Get("example.com"); !ok {
+		t.Fatalf("expected response cached")
+	}
+	afterSuccess := testutil.ToFloat64(metrics.DNSResolutionSuccess.WithLabelValues(server, "example.com"))
+	if afterSuccess <= beforeSuccess {
+		t.Fatalf("expected success metric increment")
 	}
 }
