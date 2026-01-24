@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Go 1.21 or later
+- Go 1.24.0 or later
 - Make (optional, for using Makefile)
 - Docker (optional, for containerized development)
 
@@ -21,34 +21,73 @@ go mod download
 
 3. Build the project:
 ```bash
-go build -o dnsres
+# Build the main CLI binary
+go build -o dnsres ./cmd/dnsres
+
+# Or build the TUI binary
+go build -o dnsres-tui ./cmd/dnsres-tui
+
+# Or use Makefile
+make build        # CLI binary
+make build-tui    # TUI binary
 ```
 
 ## Project Structure
 
 ```
 dnsres/
-├── cmd/
-│   └── dnsres/
+├── cmd/                          # Command-line binaries
+│   ├── dnsres/                   # Main CLI application
+│   │   └── main.go
+│   └── dnsres-tui/               # Interactive TUI application
 │       └── main.go
-├── internal/
-│   ├── cache/
-│   │   └── cache.go
-│   ├── circuitbreaker/
-│   │   ├── circuitbreaker.go
-│   │   └── errors.go
-│   ├── health/
-│   │   └── health.go
-│   └── metrics/
-│       └── metrics.go
-├── pkg/
-│   └── dnsanalysis/
-│       └── dnsanalysis.go
-├── examples
+├── internal/                     # Private packages (not importable externally)
+│   ├── app/                      # Application runtime and orchestration
+│   │   └── run.go
+│   ├── dnsres/                   # Core resolver implementation
+│   │   ├── config.go             # Configuration loading/validation
+│   │   ├── events.go             # Event bus for TUI integration
+│   │   ├── logging.go            # Log file setup
+│   │   ├── report.go             # Statistics reporting
+│   │   ├── resolver.go           # Main DNSResolver type and logic
+│   │   └── *_test.go             # Unit tests
+│   ├── tui/                      # TUI implementation (Bubble Tea)
+│   │   ├── model.go              # State and update logic
+│   │   ├── run.go                # Initialization
+│   │   └── theme.go              # Styling
+│   └── integration/              # End-to-end integration tests
+│       └── dnsres_e2e_test.go
+├── cache/                        # Sharded cache (public package)
+│   ├── sharded.go
+│   └── sharded_test.go
+├── circuitbreaker/               # Circuit breaker pattern (public)
+│   ├── circuitbreaker.go
+│   ├── errors.go
+│   └── *_test.go
+├── dnsanalysis/                  # DNS response analysis (public)
+│   ├── dnsanalysis.go
+│   └── dnsanalysis_test.go
+├── dnspool/                      # DNS client pooling (public)
+│   ├── pool.go
+│   └── pool_test.go
+├── health/                       # Health check endpoint (public)
+│   ├── health.go
+│   └── health_test.go
+├── metrics/                      # Prometheus metrics (public)
+│   ├── metrics.go
+│   └── metrics_test.go
+├── instrumentation/              # Debug instrumentation levels (public)
+│   ├── level.go
+│   └── level_test.go
+├── docs/                         # Documentation
+│   ├── DEVELOPMENT.md
+│   └── API.md
+├── examples/                     # Example configurations
 │   └── config.json
 ├── go.mod
 ├── go.sum
 ├── Makefile
+├── AGENTS.md                     # Agent/AI coding guidelines
 └── README.md
 ```
 
@@ -89,7 +128,10 @@ go test ./...
 go test -cover ./...
 
 # Run specific package tests
-go test ./internal/cache
+go test ./cache
+
+# Run integration tests
+go test -tags=integration ./internal/integration -v
 ```
 
 ### Writing Tests

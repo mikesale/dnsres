@@ -86,18 +86,18 @@ docker-run:
 	@echo "Running Docker container..."
 	docker run -p 8080:8080 -p 9090:9090 $(BINARY_NAME):$(VERSION)
 
-# Generate mocks
-mocks:
-	@echo "Generating mocks..."
-	mockgen -source=internal/circuitbreaker/circuitbreaker.go -destination=internal/circuitbreaker/mocks/circuitbreaker_mock.go
-	mockgen -source=internal/cache/cache.go -destination=internal/cache/mocks/cache_mock.go
-	mockgen -source=internal/health/health.go -destination=internal/health/mocks/health_mock.go
+# Generate mocks (currently unused - no interfaces defined yet)
+# Uncomment and update paths when mocking is needed
+# mocks:
+# 	@echo "Generating mocks..."
+# 	mockgen -source=cache/sharded.go -destination=cache/mocks/cache_mock.go
+# 	mockgen -source=health/health.go -destination=health/mocks/health_mock.go
 
 # Install development dependencies
 deps:
 	@echo "Installing development dependencies..."
 	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install github.com/golang/mock/mockgen@latest
+	# go install github.com/golang/mock/mockgen@latest  # Uncomment if mocks are needed
 
 # Show help
 help:
