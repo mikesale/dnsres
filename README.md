@@ -10,10 +10,6 @@ What you need:
 - The nameserver(s) your infrastructure uses
 - The hostname you need to test resolution against
 
-
-## Ideas
-What would I do next just for fun? If I want to have fun with it, I'd like to use an edge LLM to analyze the logs and look for anomalies with some mini-ML. Then maybe set it up as an MCP server 😎
-
 ## Features
 
 - Concurrent DNS resolution checks across multiple servers
@@ -29,8 +25,6 @@ What would I do next just for fun? If I want to have fun with it, I'd like to us
 - Health check endpoint for monitoring
 
 ## Installation
-
-I'm working on providing precompiled binaries, I just don't have anywhere to host them as of yet. 
 
 For now, make sure you have Go installed, clone the project, and then:
 

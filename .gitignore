@@ -8,6 +8,8 @@ dnsres
 dnsres-tui
 !internal/dnsres/
 !internal/dnsres/**
+!cmd/dnsres/
+!cmd/dnsres/**
 
 # Test binary, built with `go test -c`
 *.test
