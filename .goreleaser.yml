@@ -44,10 +44,7 @@ builds:
 
 archives:
   - id: default
-    # Include both binaries in the archive
-    builds:
-      - dnsres
-      - dnsres-tui
+    # Archive automatically includes all binaries from all builds
     formats:
       - tar.gz
       - zip
@@ -149,6 +146,8 @@ brews:
     directory: Formula
     ids:
       - default
+    # Use tar.gz archives for Homebrew
+    format: tar.gz
     commit_author:
       name: goreleaserbot
       email: mike.sale@gmail.com
