@@ -4,40 +4,29 @@ on:
   push:
     tags:
       - 'v*'
-  release:
-    types: [created]
-    
+
 permissions:
   contents: write
-  
-jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest]
-        goos: [darwin, linux]
-        goarch: [amd64]
 
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for changelog
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.23'
 
-      - name: Build
-        run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o dnsres-${{ matrix.goos }}-${{ matrix.goarch }}
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./dnsres-${{ matrix.goos }}-${{ matrix.goarch }}
-          asset_name: dnsres-${{ matrix.goos }}-${{ matrix.goarch }}
-          asset_content_type: application/octet-stream 
