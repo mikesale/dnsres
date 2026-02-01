@@ -116,5 +116,8 @@ func Run() error {
 		return fmt.Errorf("failed to start DNS resolver: %w", err)
 	}
 
+	// Print log location on exit
+	fmt.Printf("\nLogs written to: %s\n", resolver.GetLogDir())
+
 	return nil
 }
