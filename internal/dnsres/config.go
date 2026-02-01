@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"dnsres/instrumentation"
+	"dnsres/internal/xdg"
 )
 
 // Duration wraps time.Duration to support human-friendly strings in JSON
@@ -69,7 +70,15 @@ func DefaultConfig() *Config {
 	config.QueryInterval = Duration{Duration: 30 * time.Second}
 	config.HealthPort = 8880
 	config.MetricsPort = 9990
-	config.LogDir = "logs"
+
+	// Use XDG state directory for logs, fall back to "logs" if unavailable
+	stateDir, _, _ := xdg.EnsureStateDir()
+	if stateDir != "" {
+		config.LogDir = stateDir
+	} else {
+		config.LogDir = "logs"
+	}
+
 	config.InstrumentationLevel = "none"
 	config.CircuitBreaker.Threshold = 5
 	config.CircuitBreaker.Timeout = Duration{Duration: 30 * time.Second}
@@ -168,4 +177,37 @@ func normalizeInstrumentationLevel(value string) string {
 		return "none"
 	}
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+// ResolveConfigPath determines which config file to use.
+// Priority: explicit flag > ./config.json > XDG config
+// Returns: (path, wasCreated, error)
+func ResolveConfigPath(explicitPath string) (string, bool, error) {
+	// 1. Explicit path takes priority
+	if explicitPath != "" {
+		return explicitPath, false, nil
+	}
+
+	// 2. Check current directory (backward compatibility)
+	if fileExists("./config.json") {
+		return "./config.json", false, nil
+	}
+
+	// 3. Check/create XDG config file
+	xdgPath, wasCreated, err := xdg.ConfigFile()
+	if err != nil {
+		// If XDG fails, return empty (will use defaults)
+		return "", false, nil
+	}
+
+	return xdgPath, wasCreated, nil
+}
+
+// fileExists checks if a file exists and is not a directory.
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return !info.IsDir()
 }

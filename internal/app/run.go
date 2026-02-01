@@ -15,7 +15,7 @@ import (
 
 func Run() error {
 	// Parse command line flags
-	configFile := flag.String("config", "config.json", "Path to configuration file")
+	configFile := flag.String("config", "", "Path to configuration file (default: auto-detect)")
 	reportMode := flag.Bool("report", false, "Generate statistics report")
 	hostname := flag.String("host", "", "Override hostname from config file")
 	flag.Parse()
@@ -26,13 +26,26 @@ func Run() error {
 		positionalHost = strings.TrimSpace(args[0])
 	}
 
-	// Load configuration
-	fmt.Printf("Loading configuration from %s\n", *configFile)
-	config, err := dnsres.LoadConfig(*configFile)
+	// Resolve config path
+	configPath, wasCreated, err := dnsres.ResolveConfigPath(*configFile)
 	if err != nil {
-		fmt.Printf("Config load failed (%s); using built-in defaults\n", err)
+		return fmt.Errorf("failed to resolve config path: %w", err)
+	}
+
+	var config *dnsres.Config
+	if configPath == "" {
+		fmt.Println("No configuration file found; using built-in defaults")
 		config = dnsres.DefaultConfig()
 	} else {
+		fmt.Printf("Loading configuration from %s\n", configPath)
+		if wasCreated {
+			fmt.Printf("Created default configuration file at %s\n", configPath)
+		}
+
+		config, err = dnsres.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
 		fmt.Println("Configuration loaded")
 	}
 
@@ -56,6 +69,12 @@ func Run() error {
 		return fmt.Errorf("failed to create DNS resolver: %w", err)
 	}
 	fmt.Println("Resolver initialized")
+
+	// Report log directory fallback
+	if resolver.LogDirWasFallback() {
+		fmt.Printf("\nNote: Using fallback log directory at %s\n", resolver.GetLogDir())
+		fmt.Printf("(XDG state directory unavailable)\n\n")
+	}
 
 	// Handle report mode
 	if *reportMode {
