@@ -6,6 +6,8 @@
 *.dylib
 /dnsres
 /dnsres-tui
+!internal/dnsres/
+!internal/dnsres/**
 
 # Test binary, built with `go test -c`
 *.test
