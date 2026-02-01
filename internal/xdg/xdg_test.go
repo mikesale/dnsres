@@ -258,7 +258,11 @@ func TestEnsureStateDirFallback(t *testing.T) {
 	if err := os.Mkdir(readOnlyDir, 0000); err != nil {
 		t.Fatalf("failed to create readonly dir: %v", err)
 	}
-	defer os.Chmod(readOnlyDir, 0755)
+	defer func() {
+		if err := os.Chmod(readOnlyDir, 0755); err != nil {
+			t.Logf("warning: failed to restore permissions on readonly dir: %v", err)
+		}
+	}()
 
 	oldValue := os.Getenv("XDG_STATE_HOME")
 	defer os.Setenv("XDG_STATE_HOME", oldValue)

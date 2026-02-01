@@ -79,8 +79,14 @@ func TestSetupLoggers(t *testing.T) {
 	t.Run("XDG state dir creation fails, falls back to HOME/logs", func(t *testing.T) {
 		tempDir := t.TempDir()
 		readOnlyDir := filepath.Join(tempDir, "readonly")
-		os.Mkdir(readOnlyDir, 0000)
-		defer os.Chmod(readOnlyDir, 0755)
+		if err := os.Mkdir(readOnlyDir, 0000); err != nil {
+			t.Fatalf("failed to create readonly dir: %v", err)
+		}
+		defer func() {
+			if err := os.Chmod(readOnlyDir, 0755); err != nil {
+				t.Logf("warning: failed to restore permissions: %v", err)
+			}
+		}()
 
 		oldXDGState := os.Getenv("XDG_STATE_HOME")
 		oldHome := os.Getenv("HOME")
@@ -169,8 +175,14 @@ func TestLoggerEdgeCases(t *testing.T) {
 	t.Run("log directory exists but not writable", func(t *testing.T) {
 		tempDir := t.TempDir()
 		logDir := filepath.Join(tempDir, "readonly-logs")
-		os.Mkdir(logDir, 0000)
-		defer os.Chmod(logDir, 0755)
+		if err := os.Mkdir(logDir, 0000); err != nil {
+			t.Fatalf("failed to create readonly dir: %v", err)
+		}
+		defer func() {
+			if err := os.Chmod(logDir, 0755); err != nil {
+				t.Logf("warning: failed to restore permissions: %v", err)
+			}
+		}()
 
 		_, _, _, _, _, err := setupLoggers(logDir)
 		if err == nil {
@@ -183,10 +195,14 @@ func TestLoggerEdgeCases(t *testing.T) {
 		oldXDGState := os.Getenv("XDG_STATE_HOME")
 		tempDir := t.TempDir()
 		readOnlyDir := filepath.Join(tempDir, "readonly")
-		os.Mkdir(readOnlyDir, 0000)
+		if err := os.Mkdir(readOnlyDir, 0000); err != nil {
+			t.Fatalf("failed to create readonly dir: %v", err)
+		}
 
 		defer func() {
-			os.Chmod(readOnlyDir, 0755)
+			if err := os.Chmod(readOnlyDir, 0755); err != nil {
+				t.Logf("warning: failed to restore permissions: %v", err)
+			}
 			os.Setenv("HOME", oldHome)
 			os.Setenv("XDG_STATE_HOME", oldXDGState)
 		}()
