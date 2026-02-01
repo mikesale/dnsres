@@ -105,9 +105,11 @@ func newModel(resolver *dnsres.DNSResolver, config *dnsres.Config, cancel contex
 		health:       map[string]bool{},
 	}
 
-	// Check for log directory fallback
+	// Show log directory location
 	if resolver.LogDirWasFallback() {
 		m.statusMsg = fmt.Sprintf("Logs: %s (fallback)", resolver.GetLogDir())
+	} else {
+		m.statusMsg = fmt.Sprintf("Logs: %s", resolver.GetLogDir())
 	}
 
 	m.updateTableRows()
@@ -207,7 +209,12 @@ func (m *model) summaryView() string {
 	}
 
 	if m.statusMsg != "" {
-		lines = append(lines, warnStyle.Render(m.statusMsg))
+		// Use warning style for fallback, muted style for normal log location
+		if m.resolver.LogDirWasFallback() {
+			lines = append(lines, warnStyle.Render(m.statusMsg))
+		} else {
+			lines = append(lines, mutedStyle.Render(m.statusMsg))
+		}
 	}
 
 	lines = append(lines, mutedStyle.Render("q to quit"))
