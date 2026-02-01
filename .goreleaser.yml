@@ -226,42 +226,21 @@ nfpms:
       postinstall: scripts/postinstall.sh
 
 # Snap packages
-snapcrafts:
-  - id: snap
-    # IDs is the new way to reference builds (not 'builds')
-    ids:
-      - dnsres
-      - dnsres-tui
-    name: dnsres
-    summary: DNS resolution monitoring tool
-    description: |
-      dnsres is a DNS resolution monitoring tool with health checks, 
-      Prometheus metrics, and an interactive terminal UI (TUI).
-      
-      Features:
-      - Monitor DNS resolution across multiple servers
-      - Circuit breaker pattern for fault tolerance
-      - Health check endpoint for monitoring
-      - Prometheus metrics export
-      - Interactive TUI for real-time monitoring
-      
-      Two binaries are included:
-      - dnsres: CLI for continuous monitoring
-      - dnsres-tui: Interactive terminal UI
-      
-      Documentation: https://github.com/mikesale/dnsres
-      Report issues: https://github.com/mikesale/dnsres/issues
-    license: GPL-3.0
-    grade: stable
-    confinement: classic
-    publish: false
-    apps:
-      dnsres:
-        command: dnsres
-        completer: completions/dnsres.bash
-      dnsres-tui:
-        command: dnsres-tui
-        completer: completions/dnsres.bash
+# Disabled for now - requires snapcraft installed in CI environment
+# snapcrafts:
+#   - id: snap
+#     ids:
+#       - dnsres
+#       - dnsres-tui
+#     name: dnsres
+#     summary: DNS resolution monitoring tool
+#     description: |
+#       dnsres is a DNS resolution monitoring tool with health checks, 
+#       Prometheus metrics, and an interactive terminal UI (TUI).
+#     license: GPL-3.0
+#     grade: stable
+#     confinement: classic
+#     publish: false
 
 # Announcement for release notes
 announce:
