@@ -109,7 +109,9 @@ func TestStdoutCapture(t *testing.T) {
 
 		// Read captured output
 		var buf bytes.Buffer
-		io.Copy(&buf, r)
+		if _, err := io.Copy(&buf, r); err != nil {
+			t.Fatalf("failed to read captured output: %v", err)
+		}
 		output := buf.String()
 
 		// Verify output

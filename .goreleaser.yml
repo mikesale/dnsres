@@ -1,0 +1,128 @@
+# GoReleaser configuration for dnsres
+# Documentation: https://goreleaser.com
+
+version: 2
+
+before:
+  hooks:
+    # Ensure dependencies are up to date
+    - go mod tidy
+    # Run tests before building
+    - go test -short ./...
+
+builds:
+  # Main CLI binary
+  - id: dnsres
+    main: ./cmd/dnsres
+    binary: dnsres
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+
+  # TUI binary
+  - id: dnsres-tui
+    main: ./cmd/dnsres-tui
+    binary: dnsres-tui
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.Version={{.Version}}
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+      - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+      - docs/*.md
+      - examples/*
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - typo
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: 'Performance Improvements'
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: mikesale
+    name: dnsres
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## dnsres {{ .Tag }} ({{ .Date }})
+    
+    DNS resolution monitoring tool with health checks, metrics, and TUI.
+  footer: |
+    ---
+    
+    **Full Changelog**: https://github.com/mikesale/dnsres/compare/{{ .PreviousTag }}...{{ .Tag }}
+    
+    ### Installation
+    
+    Download the appropriate binary for your platform from the assets below, extract it, and run:
+    
+    ```bash
+    # Linux/macOS
+    tar -xzf dnsres_*_Linux_x86_64.tar.gz
+    chmod +x dnsres
+    ./dnsres
+    
+    # Windows
+    # Extract the .zip file and run dnsres.exe
+    ```
+    
+    Or use Go install:
+    ```bash
+    go install github.com/mikesale/dnsres/cmd/dnsres@{{ .Tag }}
+    ```
+
+# Announcement for release notes
+announce:
+  skip: '{{gt .Patch 0}}'  # Skip announcements for patch releases

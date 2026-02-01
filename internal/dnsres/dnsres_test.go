@@ -173,8 +173,14 @@ func TestResolveConfigPath(t *testing.T) {
   "cache": {"max_size": 1000}
 }`)
 				oldWd, _ := os.Getwd()
-				defer os.Chdir(oldWd)
-				os.Chdir(tempDir)
+				defer func() {
+					if err := os.Chdir(oldWd); err != nil {
+						t.Logf("warning: failed to restore working directory: %v", err)
+					}
+				}()
+				if err := os.Chdir(tempDir); err != nil {
+					t.Fatalf("failed to change to temp dir: %v", err)
+				}
 				if err := os.WriteFile("config.json", configJSON, 0644); err != nil {
 					t.Fatalf("failed to create ./config.json: %v", err)
 				}
@@ -199,7 +205,9 @@ func TestResolveConfigPath(t *testing.T) {
 				// Create XDG config first
 				os.Setenv("XDG_CONFIG_HOME", tempDir)
 				configDir := filepath.Join(tempDir, "dnsres")
-				os.MkdirAll(configDir, 0755)
+				if err := os.MkdirAll(configDir, 0755); err != nil {
+					t.Fatalf("failed to create config dir: %v", err)
+				}
 				configJSON := []byte(`{
   "hostnames": ["existing.com"],
   "dns_servers": ["1.1.1.1:53"],
@@ -208,7 +216,9 @@ func TestResolveConfigPath(t *testing.T) {
   "circuit_breaker": {"threshold": 5, "timeout": "30s"},
   "cache": {"max_size": 1000}
 }`)
-				os.WriteFile(filepath.Join(configDir, "config.json"), configJSON, 0644)
+				if err := os.WriteFile(filepath.Join(configDir, "config.json"), configJSON, 0644); err != nil {
+					t.Fatalf("failed to write XDG config: %v", err)
+				}
 			},
 			wantContains: "dnsres/config.json",
 			wantCreated:  false,
@@ -272,16 +282,28 @@ func TestBackwardCompatibility(t *testing.T) {
 
 		// Create both ./config.json and XDG config
 		oldWd, _ := os.Getwd()
-		defer os.Chdir(oldWd)
-		os.Chdir(tempDir)
+		defer func() {
+			if err := os.Chdir(oldWd); err != nil {
+				t.Logf("warning: failed to restore working directory: %v", err)
+			}
+		}()
+		if err := os.Chdir(tempDir); err != nil {
+			t.Fatalf("failed to change to temp dir: %v", err)
+		}
 
 		localConfig := []byte(`{"hostnames": ["local.com"], "dns_servers": ["8.8.8.8:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}, "cache": {"max_size": 1000}}`)
-		os.WriteFile("config.json", localConfig, 0644)
+		if err := os.WriteFile("config.json", localConfig, 0644); err != nil {
+			t.Fatalf("failed to write local config: %v", err)
+		}
 
 		xdgDir := filepath.Join(tempDir, "dnsres")
-		os.MkdirAll(xdgDir, 0755)
+		if err := os.MkdirAll(xdgDir, 0755); err != nil {
+			t.Fatalf("failed to create XDG dir: %v", err)
+		}
 		xdgConfig := []byte(`{"hostnames": ["xdg.com"], "dns_servers": ["1.1.1.1:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}, "cache": {"max_size": 1000}}`)
-		os.WriteFile(filepath.Join(xdgDir, "config.json"), xdgConfig, 0644)
+		if err := os.WriteFile(filepath.Join(xdgDir, "config.json"), xdgConfig, 0644); err != nil {
+			t.Fatalf("failed to write XDG config: %v", err)
+		}
 
 		gotPath, _, _ := ResolveConfigPath("")
 
@@ -302,7 +324,9 @@ func TestBackwardCompatibility(t *testing.T) {
 		explicitPath := filepath.Join(tempDir, "custom.json")
 
 		customConfig := []byte(`{"hostnames": ["custom.com"], "dns_servers": ["9.9.9.9:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}, "cache": {"max_size": 1000}}`)
-		os.WriteFile(explicitPath, customConfig, 0644)
+		if err := os.WriteFile(explicitPath, customConfig, 0644); err != nil {
+			t.Fatalf("failed to write custom config: %v", err)
+		}
 
 		gotPath, _, _ := ResolveConfigPath(explicitPath)
 
@@ -316,7 +340,9 @@ func TestConfigPathEdgeCases(t *testing.T) {
 	t.Run("config file is a directory not a file", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configDir := filepath.Join(tempDir, "config.json")
-		os.Mkdir(configDir, 0755)
+		if err := os.Mkdir(configDir, 0755); err != nil {
+			t.Fatalf("failed to create directory: %v", err)
+		}
 
 		// This should fail when trying to load, not in ResolveConfigPath
 		_, err := LoadConfig(configDir)
@@ -328,7 +354,9 @@ func TestConfigPathEdgeCases(t *testing.T) {
 	t.Run("config file has invalid JSON", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configPath := filepath.Join(tempDir, "config.json")
-		os.WriteFile(configPath, []byte("not valid json {{{"), 0644)
+		if err := os.WriteFile(configPath, []byte("not valid json {{{"), 0644); err != nil {
+			t.Fatalf("failed to write invalid config: %v", err)
+		}
 
 		_, err := LoadConfig(configPath)
 		if err == nil {
@@ -339,8 +367,14 @@ func TestConfigPathEdgeCases(t *testing.T) {
 	t.Run("config file with no read permissions", func(t *testing.T) {
 		tempDir := t.TempDir()
 		configPath := filepath.Join(tempDir, "config.json")
-		os.WriteFile(configPath, []byte(`{"hostnames":["test.com"]}`), 0000)
-		defer os.Chmod(configPath, 0644) // cleanup
+		if err := os.WriteFile(configPath, []byte(`{"hostnames":["test.com"]}`), 0000); err != nil {
+			t.Fatalf("failed to write unreadable config: %v", err)
+		}
+		defer func() {
+			if err := os.Chmod(configPath, 0644); err != nil {
+				t.Logf("warning: failed to restore permissions: %v", err)
+			}
+		}() // cleanup
 
 		_, err := LoadConfig(configPath)
 		if err == nil {
@@ -362,7 +396,9 @@ func TestResolverGetLogDir(t *testing.T) {
 			setupFunc: func(t *testing.T) string {
 				tempDir := t.TempDir()
 				customDir := filepath.Join(tempDir, "custom", "logs")
-				os.MkdirAll(customDir, 0755)
+				if err := os.MkdirAll(customDir, 0755); err != nil {
+					t.Fatalf("failed to create custom dir: %v", err)
+				}
 				return customDir
 			},
 			wantContains: "custom/logs",
@@ -406,7 +442,9 @@ func TestResolverLogDirWasFallback(t *testing.T) {
 	t.Run("returns false for custom log directory", func(t *testing.T) {
 		tempDir := t.TempDir()
 		customDir := filepath.Join(tempDir, "custom-logs")
-		os.MkdirAll(customDir, 0755)
+		if err := os.MkdirAll(customDir, 0755); err != nil {
+			t.Fatalf("failed to create custom dir: %v", err)
+		}
 
 		config := &Config{
 			Hostnames:     []string{"example.com"},
