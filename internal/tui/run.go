@@ -14,7 +14,7 @@ import (
 
 // Run starts the interactive TUI application.
 func Run() error {
-	configFile := flag.String("config", "config.json", "Path to configuration file")
+	configFile := flag.String("config", "", "Path to configuration file (default: auto-detect)")
 	hostname := flag.String("host", "", "Override hostname from config file")
 	flag.Parse()
 
@@ -24,10 +24,20 @@ func Run() error {
 		positionalHost = strings.TrimSpace(args[0])
 	}
 
-	config, err := dnsres.LoadConfig(*configFile)
+	// Resolve config path
+	configPath, _, err := dnsres.ResolveConfigPath(*configFile)
 	if err != nil {
-		fmt.Printf("Config load failed (%s); using built-in defaults\n", err)
+		return fmt.Errorf("failed to resolve config path: %w", err)
+	}
+
+	var config *dnsres.Config
+	if configPath == "" {
 		config = dnsres.DefaultConfig()
+	} else {
+		config, err = dnsres.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
 	}
 
 	if positionalHost != "" {

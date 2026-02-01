@@ -40,6 +40,8 @@ type DNSResolver struct {
 	getClient             func(string) (dnsClient, error)
 	putClient             func(string, dnsClient)
 	events                *eventBus
+	logDir                string
+	logDirFallback        bool
 }
 
 type dnsClient interface {
@@ -54,7 +56,7 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 	}
 
 	// Initialize loggers
-	successLog, errorLog, appLog, err := setupLoggers(config.LogDir)
+	successLog, errorLog, appLog, actualLogDir, wasFallback, err := setupLoggers(config.LogDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup loggers: %w", err)
 	}
@@ -109,6 +111,8 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		getClient:             nil,
 		putClient:             nil,
 		events:                newEventBus(),
+		logDir:                actualLogDir,
+		logDirFallback:        wasFallback,
 	}
 	resolver.resolveAllFunc = resolver.resolveAll
 	resolver.resolveWithServerFunc = resolver.resolveWithServer
@@ -155,6 +159,16 @@ func (r *DNSResolver) HealthSnapshot() map[string]bool {
 		return map[string]bool{}
 	}
 	return r.health.StatusSnapshot()
+}
+
+// GetLogDir returns the actual log directory being used.
+func (r *DNSResolver) GetLogDir() string {
+	return r.logDir
+}
+
+// LogDirWasFallback returns true if the log directory fell back to $HOME/logs.
+func (r *DNSResolver) LogDirWasFallback() bool {
+	return r.logDirFallback
 }
 
 // Start begins the DNS resolution monitoring

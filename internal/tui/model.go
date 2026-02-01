@@ -56,6 +56,7 @@ type model struct {
 	width        int
 	height       int
 	ready        bool
+	statusMsg    string
 }
 
 func newModel(resolver *dnsres.DNSResolver, config *dnsres.Config, cancel context.CancelFunc, events <-chan dnsres.ResolverEvent, unsubscribe func(), errs <-chan error) *model {
@@ -103,6 +104,14 @@ func newModel(resolver *dnsres.DNSResolver, config *dnsres.Config, cancel contex
 		serverOrder:  serverOrder,
 		health:       map[string]bool{},
 	}
+
+	// Show log directory location
+	if resolver.LogDirWasFallback() {
+		m.statusMsg = fmt.Sprintf("Logs: %s (fallback)", resolver.GetLogDir())
+	} else {
+		m.statusMsg = fmt.Sprintf("Logs: %s", resolver.GetLogDir())
+	}
+
 	m.updateTableRows()
 	return m
 }
@@ -188,7 +197,7 @@ func (m *model) summaryView() string {
 	}
 
 	healthyCount, unhealthyCount := m.healthCounts()
-	return strings.Join([]string{
+	lines := []string{
 		titleStyle.Render("dnsres TUI"),
 		fmt.Sprintf("Status: %s", status),
 		fmt.Sprintf("Hostnames: %d", len(m.config.Hostnames)),
@@ -197,8 +206,19 @@ func (m *model) summaryView() string {
 		fmt.Sprintf("Last cycle: %s", lastCycle),
 		fmt.Sprintf("Last done: %s", lastCompleted),
 		fmt.Sprintf("Health: %s / %s", goodStyle.Render(fmt.Sprintf("%d up", healthyCount)), badStyle.Render(fmt.Sprintf("%d down", unhealthyCount))),
-		mutedStyle.Render("q to quit"),
-	}, "\n")
+	}
+
+	if m.statusMsg != "" {
+		// Use warning style for fallback, muted style for normal log location
+		if m.resolver.LogDirWasFallback() {
+			lines = append(lines, warnStyle.Render(m.statusMsg))
+		} else {
+			lines = append(lines, mutedStyle.Render(m.statusMsg))
+		}
+	}
+
+	lines = append(lines, mutedStyle.Render("q to quit"))
+	return strings.Join(lines, "\n")
 }
 
 func (m *model) healthCounts() (int, int) {

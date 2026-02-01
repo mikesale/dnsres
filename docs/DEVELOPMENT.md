@@ -55,6 +55,9 @@ dnsres/
 │   │   ├── model.go              # State and update logic
 │   │   ├── run.go                # Initialization
 │   │   └── theme.go              # Styling
+│   ├── xdg/                      # XDG Base Directory support
+│   │   ├── xdg.go                # Path resolution and auto-creation
+│   │   └── xdg_test.go           # XDG tests
 │   └── integration/              # End-to-end integration tests
 │       └── dnsres_e2e_test.go
 ├── cache/                        # Sharded cache (public package)
@@ -80,8 +83,11 @@ dnsres/
 │   ├── level.go
 │   └── level_test.go
 ├── docs/                         # Documentation
-│   ├── DEVELOPMENT.md
-│   └── API.md
+│   ├── DEVELOPMENT.md            # This file
+│   ├── API.md                    # API documentation
+│   ├── ARCHITECTURE.md           # Architecture overview
+│   ├── INTEGRATION_TESTING.md   # Integration testing guide
+│   └── XDG.md                    # XDG Base Directory support
 ├── examples/                     # Example configurations
 │   └── config.json
 ├── go.mod
@@ -90,6 +96,25 @@ dnsres/
 ├── AGENTS.md                     # Agent/AI coding guidelines
 └── README.md
 ```
+
+## Configuration and File Locations
+
+dnsres follows the XDG Base Directory Specification for file organization:
+
+- **Config files**: `~/.config/dnsres/` (or `$XDG_CONFIG_HOME/dnsres/`)
+- **Log files**: `~/.local/state/dnsres/` (or `$XDG_STATE_HOME/dnsres/`)
+- **Data files**: `~/.local/share/dnsres/` (or `$XDG_DATA_HOME/dnsres/`)
+
+For development, you can override these locations:
+
+```bash
+# Use temp directories for testing
+export XDG_CONFIG_HOME="/tmp/test-config"
+export XDG_STATE_HOME="/tmp/test-state"
+go run ./cmd/dnsres example.com
+```
+
+See [XDG.md](XDG.md) for complete details.
 
 ## Development Workflow
 
@@ -130,8 +155,29 @@ go test -cover ./...
 # Run specific package tests
 go test ./cache
 
+# Run XDG package tests
+go test ./internal/xdg -v
+
 # Run integration tests
 go test -tags=integration ./internal/integration -v
+```
+
+### Testing with Custom XDG Directories
+
+When testing file creation and path resolution, use temporary XDG directories:
+
+```bash
+# Create temp directories
+export TEST_XDG_CONFIG="/tmp/test-$$/config"
+export TEST_XDG_STATE="/tmp/test-$$/state"
+
+# Run tests
+XDG_CONFIG_HOME="$TEST_XDG_CONFIG" \
+XDG_STATE_HOME="$TEST_XDG_STATE" \
+go test ./internal/xdg -v
+
+# Cleanup
+rm -rf /tmp/test-$$
 ```
 
 ### Writing Tests

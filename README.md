@@ -40,6 +40,49 @@ make build-tui
 
 **Note:** The build process automatically disables CGO (`CGO_ENABLED=0`) to ensure a stable, static binary that avoids kernel hangs on macOS systems.
 
+## Configuration File Locations
+
+dnsres follows the [XDG Base Directory Specification](https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) for organizing configuration and data files.
+
+### Automatic File Discovery
+
+**Config file search order:**
+1. Explicit `-config` flag path (if provided)
+2. `./config.json` (current directory, for backward compatibility)
+3. `~/.config/dnsres/config.json` (or `$XDG_CONFIG_HOME/dnsres/config.json`)
+4. Built-in defaults if no config file found
+
+**Log directory:**
+- Primary: `~/.local/state/dnsres/` (or `$XDG_STATE_HOME/dnsres/`)
+- Fallback: `$HOME/logs/` (if XDG state directory unavailable)
+- Can be overridden via `log_dir` in config file
+
+### First Run Behavior
+
+If no configuration file exists, dnsres will automatically create one at `~/.config/dnsres/config.json` with sensible defaults. You'll be notified when this happens:
+
+```
+Loading configuration from /Users/username/.config/dnsres/config.json
+Created default configuration file at /Users/username/.config/dnsres/config.json
+```
+
+You can then edit this file to customize settings for your environment.
+
+### Environment Variables
+
+Override default XDG paths using environment variables:
+- `XDG_CONFIG_HOME` - Override config directory (default: `~/.config`)
+- `XDG_STATE_HOME` - Override log directory (default: `~/.local/state`)
+
+Example:
+```bash
+export XDG_CONFIG_HOME="$HOME/.my-config"
+export XDG_STATE_HOME="$HOME/.my-state"
+dnsres example.com
+```
+
+For more details, see [docs/XDG.md](docs/XDG.md).
+
 ## Configuration
 
 The tool uses a `config.json` file for configuration. See the example at
@@ -67,13 +110,18 @@ The tool uses a `config.json` file for configuration. See the example at
 
 ### Configuration Options
 
-- `hostnames`: List of hostnames to monitor
+**Required fields:**
+- `hostnames`: List of hostnames to monitor (can be overridden with CLI argument)
 - `dns_servers`: List of DNS server IP addresses. If no port is specified, port 53 is automatically appended (e.g., `8.8.8.8` becomes `8.8.8.8:53`).
 - `query_timeout`: Timeout for each DNS query (e.g., "5s", "10s")
-- `query_interval`: Interval between resolution checks (e.g., "1m", "5m")
+- `query_interval`: Interval between resolution checks (e.g., "30s", "1m", "5m")
+
+**Optional fields:**
 - `health_port`: Port for health check endpoint (default: 8880)
 - `metrics_port`: Port for Prometheus metrics (default: 9990)
-- `log_dir`: Directory for log files (default: "logs")
+- `log_dir`: Directory for log files (default: XDG state directory or `$HOME/logs`)
+  - Leave empty or omit to use XDG defaults (`~/.local/state/dnsres/`)
+  - Set to a custom path to override (e.g., `"/var/log/dnsres"`)
 - `instrumentation_level`: Debug instrumentation level (`none`, `low`, `medium`, `high`, `critical`)
 - `circuit_breaker`: Circuit breaker configuration
   - `threshold`: Number of failures before opening (default: 5)
@@ -168,7 +216,7 @@ The tool exposes Prometheus metrics on port 9990. Available metrics include:
 
 ## Log Files
 
-The tool maintains three separate log files in the configured `log_dir` to separate concerns and simplify monitoring.
+The tool maintains three separate log files to separate concerns and simplify monitoring. By default, logs are stored in `~/.local/state/dnsres/` (following XDG conventions), but this can be customized via the `log_dir` configuration option.
 
 ### 1. `dnsres-success.log`
 Contains a clean audit trail of successful DNS resolutions. This log is intended for long-term auditing and traffic analysis.
