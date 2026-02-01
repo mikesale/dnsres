@@ -44,6 +44,10 @@ builds:
 
 archives:
   - id: default
+    # Include both binaries in the archive
+    builds:
+      - dnsres
+      - dnsres-tui
     formats:
       - tar.gz
       - zip
