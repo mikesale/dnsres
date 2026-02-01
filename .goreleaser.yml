@@ -146,8 +146,6 @@ brews:
     directory: Formula
     ids:
       - default
-    # Use tar.gz archives for Homebrew
-    format: tar.gz
     commit_author:
       name: goreleaserbot
       email: mike.sale@gmail.com
