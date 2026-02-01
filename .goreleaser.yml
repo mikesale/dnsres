@@ -7,8 +7,7 @@ before:
   hooks:
     # Ensure dependencies are up to date
     - go mod tidy
-    # Run tests before building
-    - go test -short ./...
+    # Note: Tests are run in CI before release workflow triggers
 
 builds:
   # Main CLI binary
