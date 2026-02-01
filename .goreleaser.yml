@@ -45,9 +45,9 @@ builds:
 archives:
   - id: default
     # Archive automatically includes all binaries from all builds
+    # Only tar.gz for Homebrew compatibility (it can't handle multiple formats per OS/Arch)
     formats:
       - tar.gz
-      - zip
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
