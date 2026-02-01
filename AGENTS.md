@@ -90,7 +90,12 @@ Integration tests use the `//go:build integration` build tag and require the ful
 ### Other
 - `docs/`: development guide, API documentation
 - `examples/`: example configuration files (`config.json`)
+- `completions/`: shell completion scripts for bash, zsh, fish
 - `logs/`: default log output directory (created at runtime)
+- `INSTALL.md`: comprehensive installation guide for all platforms
+- `PKGBUILD`: Arch Linux AUR package build file
+- `install.sh`: direct download installer script
+- `.github/RELEASE.md`: release process checklist
 
 ## Code Style Guidelines
 Follow standard Go style plus the conventions below, inferred from the code.
@@ -205,7 +210,44 @@ Follow standard Go style plus the conventions below, inferred from the code.
 - Avoid cached results: `go test -count=1 ./path/to/pkg`.
 - Coverage report: `make coverage`.
 
+## Package Distribution
+
+### GoReleaser
+The project uses GoReleaser (`.goreleaser.yml`) for automated releases:
+- Triggered by pushing a git tag (e.g., `v1.2.0`)
+- Builds binaries for multiple platforms (macOS, Linux, Windows)
+- Creates archives with documentation and completions
+- Generates .deb and .rpm packages for Linux
+- Creates Snap packages
+- Updates Homebrew tap automatically
+- Attaches all assets to GitHub release
+
+### Release Process
+See `.github/RELEASE.md` for complete release checklist. Quick steps:
+1. Run tests and linters
+2. Test snapshot build: `goreleaser build --snapshot --clean`
+3. Create and push tag: `git tag -a v1.2.0 -m "Release v1.2.0" && git push origin v1.2.0`
+4. GitHub Actions runs release workflow
+5. GoReleaser publishes to GitHub releases and updates Homebrew tap
+
+### Package Managers Supported
+- **Homebrew**: `brew tap mikesale/dnsres && brew install dnsres`
+- **APT** (Debian/Ubuntu): Install `.deb` from releases
+- **RPM** (RHEL/Fedora): Install `.rpm` from releases
+- **Snap**: `snap install dnsres --classic` (when published)
+- **AUR** (Arch): `PKGBUILD` file for Arch User Repository
+- **Direct Install**: `install.sh` script for quick installation
+
+### Shell Completions
+Located in `completions/` directory:
+- `dnsres.bash`: Bash completion for both binaries
+- `dnsres.zsh`: Zsh completion
+- `dnsres.fish`: Fish completion
+- Installed automatically by package managers
+- Support flag completion and file path completion for `-config`
+
 ## Non-Goals for Agents
 - Do not change log formats unless requested.
 - Do not remove `CGO_ENABLED=0` from build steps.
 - Do not introduce new config keys without updating docs.
+- Do not modify GoReleaser config without testing snapshot build first.

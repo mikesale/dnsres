@@ -58,8 +58,10 @@ archives:
     files:
       - README.md
       - LICENSE
+      - INSTALL.md
       - docs/*.md
       - examples/*
+      - completions/*
 
 checksum:
   name_template: 'checksums.txt'
@@ -105,22 +107,170 @@ release:
     
     ### Installation
     
-    Download the appropriate binary for your platform from the assets below, extract it, and run:
-    
+    **Homebrew (macOS/Linux):**
     ```bash
-    # Linux/macOS
-    tar -xzf dnsres_*_Linux_x86_64.tar.gz
-    chmod +x dnsres
-    ./dnsres
-    
-    # Windows
-    # Extract the .zip file and run dnsres.exe
+    brew tap mikesale/dnsres
+    brew install dnsres
     ```
     
-    Or use Go install:
+    **Debian/Ubuntu:**
     ```bash
-    go install github.com/mikesale/dnsres/cmd/dnsres@{{ .Tag }}
+    wget https://github.com/mikesale/dnsres/releases/download/{{ .Tag }}/dnsres_{{ .Version }}_Linux_x86_64.deb
+    sudo dpkg -i dnsres_{{ .Version }}_Linux_x86_64.deb
     ```
+    
+    **RHEL/Fedora/CentOS:**
+    ```bash
+    wget https://github.com/mikesale/dnsres/releases/download/{{ .Tag }}/dnsres_{{ .Version }}_Linux_x86_64.rpm
+    sudo rpm -i dnsres_{{ .Version }}_Linux_x86_64.rpm
+    ```
+    
+    **Direct Install Script:**
+    ```bash
+    curl -sSL https://raw.githubusercontent.com/mikesale/dnsres/main/install.sh | bash
+    ```
+    
+    **Manual Download:**
+    Download the appropriate binary for your platform from the assets below, extract it, and run.
+    
+    For detailed installation instructions, see [INSTALL.md](https://github.com/mikesale/dnsres/blob/main/INSTALL.md)
+
+# Homebrew tap
+# Using 'brews' (will migrate to 'homebrew' in future if needed)
+brews:
+  - repository:
+      owner: mikesale
+      name: homebrew-dnsres
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    ids:
+      - default
+    commit_author:
+      name: goreleaserbot
+      email: mike.sale@gmail.com
+    homepage: https://github.com/mikesale/dnsres
+    description: DNS resolution monitoring tool with health checks, metrics, and TUI
+    license: GPL-3.0
+    install: |
+      bin.install "dnsres"
+      bin.install "dnsres-tui"
+      etc.install "examples/config.json" => "dnsres/config.json.example"
+      bash_completion.install "completions/dnsres.bash" => "dnsres"
+      zsh_completion.install "completions/dnsres.zsh" => "_dnsres"
+      fish_completion.install "completions/dnsres.fish"
+      # Also install completions for dnsres-tui
+      bash_completion.install "completions/dnsres.bash" => "dnsres-tui"
+      zsh_completion.install "completions/dnsres.zsh" => "_dnsres-tui"
+      fish_completion.install "completions/dnsres.fish" => "dnsres-tui.fish"
+    caveats: |
+      Two binaries are installed:
+        • dnsres: CLI for continuous monitoring
+        • dnsres-tui: Interactive terminal UI
+
+      Configuration:
+        Default config location: ~/.config/dnsres/config.json
+        Example config: /usr/local/etc/dnsres/config.json.example
+
+      Quick start:
+        dnsres example.com          # CLI mode
+        dnsres-tui example.com      # Interactive TUI mode
+
+      Documentation: https://github.com/mikesale/dnsres
+      Issues: https://github.com/mikesale/dnsres/issues
+
+# Linux packages (DEB and RPM)
+nfpms:
+  - id: packages
+    package_name: dnsres
+    # IDs is the new way to reference builds (not 'builds')
+    ids:
+      - dnsres
+      - dnsres-tui
+    vendor: Mike Sale
+    homepage: https://github.com/mikesale/dnsres
+    maintainer: Mike Sale <mike.sale@gmail.com>
+    description: DNS resolution monitoring tool with health checks, metrics, and TUI
+    license: GPL-3.0
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/local/bin
+    contents:
+      # Example configuration
+      - src: examples/config.json
+        dst: /etc/dnsres/config.json.example
+        type: config
+      # Documentation
+      - src: README.md
+        dst: /usr/share/doc/dnsres/README.md
+      - src: INSTALL.md
+        dst: /usr/share/doc/dnsres/INSTALL.md
+      - src: LICENSE
+        dst: /usr/share/doc/dnsres/LICENSE
+      # Bash completions
+      - src: completions/dnsres.bash
+        dst: /usr/share/bash-completion/completions/dnsres
+      - src: completions/dnsres.bash
+        dst: /usr/share/bash-completion/completions/dnsres-tui
+      # Zsh completions
+      - src: completions/dnsres.zsh
+        dst: /usr/share/zsh/site-functions/_dnsres
+      - src: completions/dnsres.zsh
+        dst: /usr/share/zsh/site-functions/_dnsres-tui
+      # Fish completions
+      - src: completions/dnsres.fish
+        dst: /usr/share/fish/vendor_completions.d/dnsres.fish
+      - src: completions/dnsres.fish
+        dst: /usr/share/fish/vendor_completions.d/dnsres-tui.fish
+    scripts:
+      postinstall: |
+        #!/bin/sh
+        # Create config directory if it doesn't exist
+        if [ ! -d "/etc/dnsres" ]; then
+          mkdir -p /etc/dnsres
+        fi
+        echo "dnsres installed successfully!"
+        echo "Configuration example: /etc/dnsres/config.json.example"
+        echo "User config location: ~/.config/dnsres/config.json"
+        echo "Documentation: https://github.com/mikesale/dnsres"
+        echo "Report issues: https://github.com/mikesale/dnsres/issues"
+
+# Snap packages
+snapcrafts:
+  - id: snap
+    # IDs is the new way to reference builds (not 'builds')
+    ids:
+      - dnsres
+      - dnsres-tui
+    name: dnsres
+    summary: DNS resolution monitoring tool
+    description: |
+      dnsres is a DNS resolution monitoring tool with health checks, 
+      Prometheus metrics, and an interactive terminal UI (TUI).
+      
+      Features:
+      - Monitor DNS resolution across multiple servers
+      - Circuit breaker pattern for fault tolerance
+      - Health check endpoint for monitoring
+      - Prometheus metrics export
+      - Interactive TUI for real-time monitoring
+      
+      Two binaries are included:
+      - dnsres: CLI for continuous monitoring
+      - dnsres-tui: Interactive terminal UI
+      
+      Documentation: https://github.com/mikesale/dnsres
+      Report issues: https://github.com/mikesale/dnsres/issues
+    license: GPL-3.0
+    grade: stable
+    confinement: classic
+    publish: false
+    apps:
+      dnsres:
+        command: dnsres
+        completer: completions/dnsres.bash
+      dnsres-tui:
+        command: dnsres-tui
+        completer: completions/dnsres.bash
 
 # Announcement for release notes
 announce:

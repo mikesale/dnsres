@@ -26,19 +26,51 @@ What you need:
 
 ## Installation
 
-For now, make sure you have Go installed, clone the project, and then:
+### Quick Install
 
+**macOS/Linux (Homebrew - Recommended):**
 ```bash
-make build
+brew tap mikesale/dnsres
+brew install dnsres
 ```
 
-To build the interactive TUI binary:
-
+**macOS/Linux (Install Script):**
 ```bash
-make build-tui
+curl -sSL https://raw.githubusercontent.com/mikesale/dnsres/main/install.sh | bash
 ```
 
-**Note:** The build process automatically disables CGO (`CGO_ENABLED=0`) to ensure a stable, static binary that avoids kernel hangs on macOS systems.
+**Debian/Ubuntu:**
+```bash
+# Download the .deb from releases page
+sudo dpkg -i dnsres_*_Linux_x86_64.deb
+```
+
+**RHEL/Fedora/CentOS:**
+```bash
+# Download the .rpm from releases page
+sudo rpm -i dnsres_*_Linux_x86_64.rpm
+```
+
+**Other Methods:**
+
+For detailed installation instructions including Snap, AUR, Windows, and building from source, see **[INSTALL.md](INSTALL.md)**.
+
+### Quick Start After Install
+
+```bash
+# CLI mode - continuous monitoring
+dnsres example.com
+
+# Interactive TUI mode
+dnsres-tui example.com
+
+# With custom configuration
+dnsres -config ~/.config/dnsres/config.json
+```
+
+Two binaries are installed:
+- `dnsres` - CLI for continuous monitoring and logging
+- `dnsres-tui` - Interactive terminal UI with real-time updates
 
 ## Configuration File Locations
 
