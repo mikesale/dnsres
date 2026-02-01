@@ -4,10 +4,8 @@
 *.dll
 *.so
 *.dylib
-dnsres
-dnsres-tui
-!internal/dnsres/
-!internal/dnsres/**
+/dnsres
+/dnsres-tui
 
 # Test binary, built with `go test -c`
 *.test
