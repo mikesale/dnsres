@@ -86,10 +86,9 @@ git push origin v1.2.0
 - [ ] Verify release notes are accurate
 
 ### 5. Test Installation from Release
-- [ ] Test Homebrew tap (may take a few minutes to update):
+- [ ] Test Homebrew (may take a few minutes to update):
   ```bash
-  brew tap mikesale/dnsres
-  brew install dnsres
+  brew install mikesale/dnsres/dnsres
   dnsres -version
   ```
 - [ ] Test install script:
@@ -98,12 +97,12 @@ git push origin v1.2.0
   ```
 - [ ] Download and test manual installation from release page
 
-### 6. Update Homebrew Formula (If Needed)
-GoReleaser should automatically update the formula in `homebrew-dnsres`, but verify:
-- [ ] Go to: https://github.com/mikesale/homebrew-dnsres
-- [ ] Verify Formula/dnsres.rb was updated
+### 6. Verify Homebrew Formula
+GoReleaser should automatically create/update the formula in the main repository:
+- [ ] Verify `Formula/dnsres.rb` was created/updated in main repo
 - [ ] Check version number matches release
 - [ ] Check SHA256 checksums are present
+- [ ] Test installation: `brew install mikesale/dnsres/dnsres`
 
 ## Post-Release Tasks
 
@@ -166,13 +165,14 @@ Once project meets requirements:
 4. Fix issue, re-tag, and push again
 
 ### Homebrew Formula Not Updated
-1. Check homebrew-dnsres repository for recent commits
+1. Check for `Formula/dnsres.rb` in the main repository
 2. GoReleaser needs GITHUB_TOKEN with repo access
-3. Manually update formula if needed:
+3. Manually create formula if needed:
    ```ruby
    url "https://github.com/mikesale/dnsres/releases/download/v1.2.0/dnsres_1.2.0_Darwin_x86_64.tar.gz"
    sha256 "abc123..."  # Get from checksums.txt
    ```
+4. Commit to main branch: `git add Formula/dnsres.rb && git commit -m "Update Homebrew formula"`
 
 ### Package Install Issues
 1. Test package installation on clean VM
@@ -225,11 +225,11 @@ If a release has critical issues:
 1. Mark GitHub release as "Pre-release" to warn users
 2. Create hotfix release (see above)
 3. Notify users via GitHub issues/discussions
-4. Update Homebrew formula to point to previous version temporarily:
+4. Revert Homebrew formula to previous version:
    ```bash
-   cd homebrew-dnsres
-   git revert HEAD  # Revert to previous formula
-   git push
+   git revert HEAD -- Formula/dnsres.rb
+   git commit -m "Revert Homebrew formula to previous version"
+   git push origin main
    ```
 
 ---

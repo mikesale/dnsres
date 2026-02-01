@@ -231,7 +231,7 @@ See `.github/RELEASE.md` for complete release checklist. Quick steps:
 5. GoReleaser publishes to GitHub releases and updates Homebrew tap
 
 ### Package Managers Supported
-- **Homebrew**: `brew tap mikesale/dnsres && brew install dnsres`
+- **Homebrew**: `brew install mikesale/dnsres/dnsres`
 - **APT** (Debian/Ubuntu): Install `.deb` from releases
 - **RPM** (RHEL/Fedora): Install `.rpm` from releases
 - **Snap**: `snap install dnsres --classic` (when published)

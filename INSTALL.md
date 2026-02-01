@@ -30,8 +30,7 @@ curl -sSL https://raw.githubusercontent.com/mikesale/dnsres/main/install.sh | ba
 
 **macOS/Linux (using Homebrew):**
 ```bash
-brew tap mikesale/dnsres
-brew install dnsres
+brew install mikesale/dnsres/dnsres
 ```
 
 ---
@@ -42,15 +41,12 @@ Homebrew is the recommended installation method for macOS and Linux users.
 
 ### Installation
 
-1. **Add the tap:**
-   ```bash
-   brew tap mikesale/dnsres
-   ```
+**Single command installation:**
+```bash
+brew install mikesale/dnsres/dnsres
+```
 
-2. **Install dnsres:**
-   ```bash
-   brew install dnsres
-   ```
+This installs directly from the dnsres repository without needing a separate tap.
 
 ### What Gets Installed
 
@@ -82,7 +78,6 @@ brew upgrade dnsres
 
 ```bash
 brew uninstall dnsres
-brew untap mikesale/dnsres
 ```
 
 ---

@@ -109,8 +109,7 @@ release:
     
     **Homebrew (macOS/Linux):**
     ```bash
-    brew tap mikesale/dnsres
-    brew install dnsres
+    brew install mikesale/dnsres/dnsres
     ```
     
     **Debian/Ubuntu:**
@@ -135,13 +134,15 @@ release:
     
     For detailed installation instructions, see [INSTALL.md](https://github.com/mikesale/dnsres/blob/main/INSTALL.md)
 
-# Homebrew tap
-# Using 'brews' (will migrate to 'homebrew' in future if needed)
+# Homebrew formula (stored in main repository)
+# Users install with: brew install mikesale/dnsres/dnsres
 brews:
   - repository:
       owner: mikesale
-      name: homebrew-dnsres
+      name: dnsres
+      branch: main
       token: "{{ .Env.GITHUB_TOKEN }}"
+    directory: Formula
     ids:
       - default
     commit_author:

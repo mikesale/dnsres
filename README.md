@@ -30,8 +30,7 @@ What you need:
 
 **macOS/Linux (Homebrew - Recommended):**
 ```bash
-brew tap mikesale/dnsres
-brew install dnsres
+brew install mikesale/dnsres/dnsres
 ```
 
 **macOS/Linux (Install Script):**
