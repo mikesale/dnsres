@@ -17,7 +17,7 @@ At runtime the application follows this lifecycle:
 
 1. Parse CLI flags and load configuration.
 2. Validate configuration and normalize DNS server addresses (ensure `:53`).
-3. Initialize core components (loggers, client pool, circuit breakers, cache,
+3. Initialize core components (loggers, circuit breakers,
    health checker, metrics).
 4. Start HTTP servers for health and Prometheus metrics.
 5. Start the resolution loop that continuously queries DNS servers.
@@ -54,33 +54,18 @@ These are used consistently across the system to separate concerns.
 ### DNSResolver (orchestrator)
 `DNSResolver` owns and coordinates the system:
 - `config` (validated configuration)
-- `clientPool` (`dnspool.ClientPool`)
 - `breakers` (`circuitbreaker.CircuitBreaker` per server)
-- `cache` (`cache.ShardedCache`)
 - `health` (`health.HealthChecker`)
 - `successLog`, `errorLog`, `appLog`
 - `stats` (in-memory counters used by report mode)
 
 Creation: `NewDNSResolver` sets up all dependencies and seeds per-server stats.
 
-### Client Pool (`dnspool`)
-The client pool reuses `*dns.Client` instances keyed by server address:
-- Limits pool size per server.
-- Applies per-request timeout from configuration.
-- Records protocol metrics for pooled/new/returned/dropped usage.
-
 ### Circuit Breaker (`circuitbreaker`)
 Each DNS server has its own circuit breaker that tracks failures:
 - States: Closed, Open, Half-Open.
 - `Allow` guards requests and updates state metrics.
 - `RecordSuccess`/`RecordFailure` update failure counts and metrics.
-
-### Cache (`cache`)
-The sharded cache stores `DNSResponse` values:
-- Sharded map for concurrency (`CacheShard` uses `sync.RWMutex`).
-- TTL-based expiration on read.
-- Eviction is size-based per shard.
-- Metrics track cache hits, misses, evictions, and size.
 
 ### Health Checker (`health`)
 Health checks are a TCP connectivity probe to DNS servers:
@@ -90,7 +75,7 @@ Health checks are a TCP connectivity probe to DNS servers:
 
 ### Metrics (`metrics`)
 Prometheus metrics are defined in a dedicated package:
-- Counters, gauges, histograms for resolution, cache, circuit breaker, health.
+- Counters, gauges, histograms for resolution, circuit breaker, health.
 - Metrics are updated throughout the resolver workflow.
 
 ## Resolution Workflow (Data Flow)
@@ -109,18 +94,14 @@ The resolution loop runs in `DNSResolver.Start` and `resolveAll`.
    - For each hostname, it queries all DNS servers concurrently.
 
 4. **Per-server resolution path (resolveWithServer):**
-   - **Cache lookup:** check `cache.Get(hostname)`.
-     - On hit: increment cache hit metrics, return cached response.
-     - On miss: increment cache miss metrics, continue.
    - **Circuit breaker:** call `Allow` before issuing network requests.
-   - **Client pool:** get a DNS client (reused or new).
+   - **Create** a DNS client for the query.
    - **Query:** send DNS request with `ExchangeContext`.
    - **Metrics and stats:**
      - Record success/failure counts.
      - Record response size, duration, and status.
    - **Response handling:**
      - Extract records, derive minimum TTL, build `DNSResponse`.
-   - **Cache store:** store with TTL-based expiration.
 
 5. **Consistency check:**
    - After all servers return for a hostname, `dnsanalysis.CompareResponses`
@@ -143,9 +124,7 @@ The resolution loop runs in `DNSResolver.Start` and `resolveAll`.
 ## Concurrency and Synchronization
 
 Key synchronization points:
-- Cache shards: `RWMutex` for per-shard entries.
 - Circuit breaker: `Mutex` for per-server counters and timestamps.
-- Client pool: `Mutex` protects shared map of clients.
 - Health checker: `RWMutex` protects status map.
 
 Care is taken to keep lock scopes small and avoid I/O while locked.
@@ -164,15 +143,14 @@ When adding functionality:
 - Keep new metrics in `metrics/metrics.go` and reuse existing label order.
 - Prefer extending `DNSResolver` rather than creating parallel control flows.
 - Add new config fields to `Config`, update validation, and update `README.md`.
-- Consider tests for cache behavior, circuit breaker state changes, and
+- Consider tests for circuit breaker state changes, and
   config parsing when adding new logic.
 
 ## Component Map
 
 - Orchestration: `dnsres.go`
-- DNS queries: `dnspool/pool.go`, `dnsres.go` (`resolveWithServer`)
-- Cache: `cache/sharded.go`
+- DNS queries: `resolver.go` (`resolveWithServer`)
 - Circuit breaker: `circuitbreaker/circuitbreaker.go`
-- Response analysis: `dnsanalysis/dnsanalysis.go`
+- Response types and comparison: `dnsanalysis/dnsanalysis.go`
 - Health checks: `health/health.go`
 - Metrics: `metrics/metrics.go`

@@ -13,7 +13,6 @@ What you need:
 ## Features
 
 - Concurrent DNS resolution checks across multiple servers
-- Sharded cache implementation for high-performance caching
 - Circuit breaker pattern for fault tolerance
 - Configurable query timeout and interval
 - Separate logs for resolution success, failures, and application health
@@ -132,9 +131,6 @@ The tool uses a `config.json` file for configuration. See the example at
   "circuit_breaker": {
     "threshold": 5,
     "timeout": "30s"
-  },
-  "cache": {
-    "max_size": 1000
   }
 }
 ```
@@ -157,19 +153,14 @@ The tool uses a `config.json` file for configuration. See the example at
 - `circuit_breaker`: Circuit breaker configuration
   - `threshold`: Number of failures before opening (default: 5)
   - `timeout`: Time to wait before resetting (default: "30s")
-- `cache`: Cache configuration
-  - `max_size`: Maximum number of cache entries (default: 1000)
 
 ## Architecture
 
 The tool is built with a modular architecture:
-
-- `dnspool`: Manages a pool of DNS clients for efficient resolution
-- `cache`: Implements a sharded cache for high-performance caching
 - `circuitbreaker`: Implements the circuit breaker pattern
 - `health`: Provides health check functionality
 - `metrics`: Exposes Prometheus metrics
-- `dnsanalysis`: Analyzes DNS responses and compares results
+- `dnsanalysis`: DNS response types and consistency comparison
 
 ## Circuit Breaker Pattern
 

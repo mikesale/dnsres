@@ -60,19 +60,13 @@ dnsres/
 │   │   └── xdg_test.go           # XDG tests
 │   └── integration/              # End-to-end integration tests
 │       └── dnsres_e2e_test.go
-├── cache/                        # Sharded cache (public package)
-│   ├── sharded.go
-│   └── sharded_test.go
 ├── circuitbreaker/               # Circuit breaker pattern (public)
 │   ├── circuitbreaker.go
 │   ├── errors.go
 │   └── *_test.go
-├── dnsanalysis/                  # DNS response analysis (public)
+├── dnsanalysis/                  # DNS response types and comparison (public)
 │   ├── dnsanalysis.go
 │   └── dnsanalysis_test.go
-├── dnspool/                      # DNS client pooling (public)
-│   ├── pool.go
-│   └── pool_test.go
 ├── health/                       # Health check endpoint (public)
 │   ├── health.go
 │   └── health_test.go
@@ -153,8 +147,6 @@ go test ./...
 go test -cover ./...
 
 # Run specific package tests
-go test ./cache
-
 # Run XDG package tests
 go test ./internal/xdg -v
 

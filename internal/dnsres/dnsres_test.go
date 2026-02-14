@@ -1,15 +1,11 @@
 package dnsres
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
-
-	"dnsres/cache"
-	"dnsres/dnsanalysis"
 )
 
 func TestValidateConfigInstrumentationLevel(t *testing.T) {
@@ -24,7 +20,6 @@ func TestValidateConfigInstrumentationLevel(t *testing.T) {
 	}
 	base.CircuitBreaker.Threshold = 1
 	base.CircuitBreaker.Timeout = Duration{Duration: 30 * time.Second}
-	base.Cache.MaxSize = 10
 
 	valid := base
 	valid.InstrumentationLevel = "HiGh"
@@ -51,9 +46,6 @@ func TestLoadConfigNormalizesDNSServerPorts(t *testing.T) {
   "circuit_breaker": {
     "threshold": 1,
     "timeout": "30s"
-  },
-  "cache": {
-    "max_size": 10
   }
 }`)
 
@@ -74,21 +66,6 @@ func TestLoadConfigNormalizesDNSServerPorts(t *testing.T) {
 	}
 	if cfg.DNSServers[1] != "1.1.1.1:54" {
 		t.Fatalf("expected existing port preserved, got %s", cfg.DNSServers[1])
-	}
-}
-
-func TestResolveWithServerUsesCache(t *testing.T) {
-	entry := &dnsanalysis.DNSResponse{Hostname: "example.com"}
-	shardedCache := cache.NewShardedCache(1024, 1)
-	shardedCache.Set("example.com", entry, time.Minute)
-
-	resolver := &DNSResolver{cache: shardedCache}
-	got, err := resolver.resolveWithServer(context.Background(), "8.8.8.8:53", "example.com")
-	if err != nil {
-		t.Fatalf("resolveWithServer returned error: %v", err)
-	}
-	if got != entry {
-		t.Fatalf("expected cached response, got %+v", got)
 	}
 }
 
@@ -163,26 +140,27 @@ func TestResolveConfigPath(t *testing.T) {
 			name:         "local config.json exists",
 			explicitPath: "",
 			setupFunc: func(t *testing.T, tempDir string) {
-				// Create ./config.json in current directory
+				// Create ./config.json in temp directory and change to it
 				configJSON := []byte(`{
   "hostnames": ["test.com"],
   "dns_servers": ["8.8.8.8:53"],
   "query_timeout": "5s",
   "query_interval": "30s",
-  "circuit_breaker": {"threshold": 5, "timeout": "30s"},
-  "cache": {"max_size": 1000}
+  "circuit_breaker": {"threshold": 5, "timeout": "30s"}
 }`)
+				// Create config.json in the temp directory
+				if err := os.WriteFile(filepath.Join(tempDir, "config.json"), configJSON, 0644); err != nil {
+					t.Fatalf("failed to create config.json: %v", err)
+				}
+				// Change to temp directory so ResolveConfigPath finds ./config.json
 				oldWd, _ := os.Getwd()
-				defer func() {
+				t.Cleanup(func() {
 					if err := os.Chdir(oldWd); err != nil {
 						t.Logf("warning: failed to restore working directory: %v", err)
 					}
-				}()
+				})
 				if err := os.Chdir(tempDir); err != nil {
 					t.Fatalf("failed to change to temp dir: %v", err)
-				}
-				if err := os.WriteFile("config.json", configJSON, 0644); err != nil {
-					t.Fatalf("failed to create ./config.json: %v", err)
 				}
 			},
 			wantContains: "config.json",
@@ -213,8 +191,7 @@ func TestResolveConfigPath(t *testing.T) {
   "dns_servers": ["1.1.1.1:53"],
   "query_timeout": "5s",
   "query_interval": "30s",
-  "circuit_breaker": {"threshold": 5, "timeout": "30s"},
-  "cache": {"max_size": 1000}
+  "circuit_breaker": {"threshold": 5, "timeout": "30s"}
 }`)
 				if err := os.WriteFile(filepath.Join(configDir, "config.json"), configJSON, 0644); err != nil {
 					t.Fatalf("failed to write XDG config: %v", err)
@@ -291,7 +268,7 @@ func TestBackwardCompatibility(t *testing.T) {
 			t.Fatalf("failed to change to temp dir: %v", err)
 		}
 
-		localConfig := []byte(`{"hostnames": ["local.com"], "dns_servers": ["8.8.8.8:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}, "cache": {"max_size": 1000}}`)
+		localConfig := []byte(`{"hostnames": ["local.com"], "dns_servers": ["8.8.8.8:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}}`)
 		if err := os.WriteFile("config.json", localConfig, 0644); err != nil {
 			t.Fatalf("failed to write local config: %v", err)
 		}
@@ -300,7 +277,7 @@ func TestBackwardCompatibility(t *testing.T) {
 		if err := os.MkdirAll(xdgDir, 0755); err != nil {
 			t.Fatalf("failed to create XDG dir: %v", err)
 		}
-		xdgConfig := []byte(`{"hostnames": ["xdg.com"], "dns_servers": ["1.1.1.1:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}, "cache": {"max_size": 1000}}`)
+		xdgConfig := []byte(`{"hostnames": ["xdg.com"], "dns_servers": ["1.1.1.1:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}}`)
 		if err := os.WriteFile(filepath.Join(xdgDir, "config.json"), xdgConfig, 0644); err != nil {
 			t.Fatalf("failed to write XDG config: %v", err)
 		}
@@ -323,7 +300,7 @@ func TestBackwardCompatibility(t *testing.T) {
 		tempDir := t.TempDir()
 		explicitPath := filepath.Join(tempDir, "custom.json")
 
-		customConfig := []byte(`{"hostnames": ["custom.com"], "dns_servers": ["9.9.9.9:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}, "cache": {"max_size": 1000}}`)
+		customConfig := []byte(`{"hostnames": ["custom.com"], "dns_servers": ["9.9.9.9:53"], "query_timeout": "5s", "query_interval": "30s", "circuit_breaker": {"threshold": 5, "timeout": "30s"}}`)
 		if err := os.WriteFile(explicitPath, customConfig, 0644); err != nil {
 			t.Fatalf("failed to write custom config: %v", err)
 		}
@@ -423,7 +400,6 @@ func TestResolverGetLogDir(t *testing.T) {
 			}
 			config.CircuitBreaker.Threshold = 1
 			config.CircuitBreaker.Timeout = Duration{Duration: 30 * time.Second}
-			config.Cache.MaxSize = 10
 
 			resolver, err := NewDNSResolver(config)
 			if err != nil {
@@ -455,7 +431,6 @@ func TestResolverLogDirWasFallback(t *testing.T) {
 		}
 		config.CircuitBreaker.Threshold = 1
 		config.CircuitBreaker.Timeout = Duration{Duration: 30 * time.Second}
-		config.Cache.MaxSize = 10
 
 		resolver, err := NewDNSResolver(config)
 		if err != nil {

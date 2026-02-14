@@ -1,12 +1,6 @@
 {
-  "hostnames": [
-    "smythos.com",
-    "app.smythos.com"
-  ],
-  "dns_servers": [
-    "8.8.8.8:53",
-    "1.1.1.1:53"
-  ],
+  "hostnames": ["smythos.com", "app.smythos.com"],
+  "dns_servers": ["8.8.8.8:53", "1.1.1.1:53"],
   "query_timeout": "5s",
   "query_interval": "10s",
   "health_port": 8880,
@@ -16,8 +10,5 @@
   "circuit_breaker": {
     "threshold": 5,
     "timeout": "30s"
-  },
-  "cache": {
-    "max_size": 1000
   }
 }

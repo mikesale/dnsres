@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"dnsres/cache"
 	"dnsres/circuitbreaker"
 	"dnsres/metrics"
 
@@ -31,7 +30,7 @@ func TestResolveWithServerCircuitBreakerOpen(t *testing.T) {
 
 	resolver := &DNSResolver{
 		breakers: map[string]*circuitbreaker.CircuitBreaker{server: breaker},
-		cache:    cache.NewShardedCache(1024, 1),
+
 		getClient: func(string) (dnsClient, error) {
 			t.Fatalf("unexpected client fetch")
 			return nil, nil
@@ -51,7 +50,7 @@ func TestResolveWithServerClientPoolError(t *testing.T) {
 		breakers: map[string]*circuitbreaker.CircuitBreaker{
 			server: circuitbreaker.NewCircuitBreaker(2, time.Minute, server),
 		},
-		cache: cache.NewShardedCache(1024, 1),
+
 		getClient: func(string) (dnsClient, error) {
 			return nil, errors.New("pool unavailable")
 		},
@@ -72,7 +71,7 @@ func TestResolveWithServerQueryError(t *testing.T) {
 		breakers: map[string]*circuitbreaker.CircuitBreaker{
 			server: circuitbreaker.NewCircuitBreaker(2, time.Minute, server),
 		},
-		cache: cache.NewShardedCache(1024, 1),
+
 		stats: &ResolutionStats{Stats: map[string]*ServerStats{server: {}}},
 		getClient: func(string) (dnsClient, error) {
 			return fake, nil
@@ -100,7 +99,7 @@ func TestResolveWithServerRcodeError(t *testing.T) {
 		breakers: map[string]*circuitbreaker.CircuitBreaker{
 			server: circuitbreaker.NewCircuitBreaker(2, time.Minute, server),
 		},
-		cache: cache.NewShardedCache(1024, 1),
+
 		stats: &ResolutionStats{Stats: map[string]*ServerStats{server: {}}},
 		getClient: func(string) (dnsClient, error) {
 			return fake, nil
@@ -136,7 +135,7 @@ func TestResolveWithServerSuccessUpdatesMetrics(t *testing.T) {
 		breakers: map[string]*circuitbreaker.CircuitBreaker{
 			server: circuitbreaker.NewCircuitBreaker(2, time.Minute, server),
 		},
-		cache: cache.NewShardedCache(1024, 1),
+
 		stats: &ResolutionStats{Stats: map[string]*ServerStats{server: {}}},
 		getClient: func(string) (dnsClient, error) {
 			return fake, nil
@@ -160,9 +159,6 @@ func TestResolveWithServerSuccessUpdatesMetrics(t *testing.T) {
 	}
 	if resolver.stats.Stats[server].Failures != 0 {
 		t.Fatalf("expected no failures, got %d", resolver.stats.Stats[server].Failures)
-	}
-	if _, ok := resolver.cache.Get("example.com"); !ok {
-		t.Fatalf("expected response cached")
 	}
 	afterSuccess := testutil.ToFloat64(metrics.DNSResolutionSuccess.WithLabelValues(server, "example.com"))
 	if afterSuccess <= beforeSuccess {

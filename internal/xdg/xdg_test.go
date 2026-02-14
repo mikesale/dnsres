@@ -362,7 +362,6 @@ func TestCreateMinimalConfig(t *testing.T) {
 		"log_dir":               true,
 		"instrumentation_level": true,
 		"circuit_breaker":       true,
-		"cache":                 true,
 	}
 
 	for field := range requiredFields {

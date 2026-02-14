@@ -69,9 +69,6 @@ When dnsres cannot find a configuration file, it automatically creates one at `~
 
 ```json
 {
-  "cache": {
-    "max_size": 1000
-  },
   "circuit_breaker": {
     "threshold": 5,
     "timeout": "30s"
