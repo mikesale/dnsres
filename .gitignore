@@ -24,6 +24,7 @@ go.work
 # IDE specific files
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 
@@ -50,4 +51,4 @@ release/
 
 # Temporary files
 tmp/
-temp/ 
+temp/
