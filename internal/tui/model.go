@@ -416,7 +416,7 @@ func uniqueSorted(values []string) []string {
 
 func formatDuration(duration time.Duration, source string) string {
 	if duration == 0 {
-		return source
+		return "<1ms"
 	}
 	return duration.Round(time.Millisecond).String()
 }

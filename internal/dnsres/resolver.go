@@ -334,7 +334,7 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 			Hostname: hostname,
 			Server:   server,
 			Error:    err.Error(),
-			Source:   "client_pool",
+			Source:   "dns_client",
 		})
 		return nil, fmt.Errorf("failed to get client from pool: %w", err)
 	}
