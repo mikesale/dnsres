@@ -140,7 +140,7 @@ func TestResolveConfigPath(t *testing.T) {
 			name:         "local config.json exists",
 			explicitPath: "",
 			setupFunc: func(t *testing.T, tempDir string) {
-				// Create ./config.json in current directory
+				// Create ./config.json in temp directory and change to it
 				configJSON := []byte(`{
   "hostnames": ["test.com"],
   "dns_servers": ["8.8.8.8:53"],
@@ -148,17 +148,19 @@ func TestResolveConfigPath(t *testing.T) {
   "query_interval": "30s",
   "circuit_breaker": {"threshold": 5, "timeout": "30s"}
 }`)
+				// Create config.json in the temp directory
+				if err := os.WriteFile(filepath.Join(tempDir, "config.json"), configJSON, 0644); err != nil {
+					t.Fatalf("failed to create config.json: %v", err)
+				}
+				// Change to temp directory so ResolveConfigPath finds ./config.json
 				oldWd, _ := os.Getwd()
-				defer func() {
+				t.Cleanup(func() {
 					if err := os.Chdir(oldWd); err != nil {
 						t.Logf("warning: failed to restore working directory: %v", err)
 					}
-				}()
+				})
 				if err := os.Chdir(tempDir); err != nil {
 					t.Fatalf("failed to change to temp dir: %v", err)
-				}
-				if err := os.WriteFile("config.json", configJSON, 0644); err != nil {
-					t.Fatalf("failed to create ./config.json: %v", err)
 				}
 			},
 			wantContains: "config.json",

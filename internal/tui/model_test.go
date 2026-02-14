@@ -29,6 +29,11 @@ func TestModelStatusMessage(t *testing.T) {
 			t.Fatalf("failed to create resolver: %v", err)
 		}
 
+		// Verify resolver correctly identifies this as NOT a fallback
+		if resolver.LogDirWasFallback() {
+			t.Fatalf("resolver incorrectly marked custom log directory as fallback")
+		}
+
 		events := make(chan dnsres.ResolverEvent, 10)
 		errs := make(chan error, 1)
 		unsubscribe := func() { close(events) }
@@ -52,6 +57,7 @@ func TestModelStatusMessage(t *testing.T) {
 		}
 
 		t.Logf("Status message (custom path): %s", m.statusMsg)
+		t.Logf("Fallback status: %v", resolver.LogDirWasFallback())
 	})
 
 	t.Run("XDG log directory shows path without fallback notice", func(t *testing.T) {
