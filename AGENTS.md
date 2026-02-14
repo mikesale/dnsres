@@ -34,7 +34,7 @@ Use the Makefile targets first; they encode repo-specific behavior.
 
 ### Running a Single Test
 The repository contains 13 test files across multiple packages:
-- Unit tests: `cache/`, `circuitbreaker/`, `dnsanalysis/`, `dnspool/`, `health/`, `metrics/`, `instrumentation/`
+- Unit tests: `circuitbreaker/`, `dnsanalysis/`, `dnspool/`, `health/`, `metrics/`, `instrumentation/`
 - Package tests: `internal/dnsres/` (resolver, cycle, loop tests)
 - Integration tests: `internal/integration/` (E2E tests with build tag)
 
@@ -79,7 +79,6 @@ Integration tests use the `//go:build integration` build tag and require the ful
 - `internal/integration/`: end-to-end integration tests (requires `integration` build tag)
 
 ### Public Packages (root-level, importable by external code)
-- `cache/`: sharded cache implementation with expiration
 - `circuitbreaker/`: circuit breaker pattern with metrics integration
 - `dnspool/`: DNS client pooling for connection reuse
 - `dnsanalysis/`: DNS response analysis and consistency checking
@@ -105,7 +104,7 @@ Follow standard Go style plus the conventions below, inferred from the code.
 - Use tabs for indentation and keep line length reasonable.
 
 ### Imports
-- Group imports as: standard library, internal packages (`dnsres/internal/...`), public packages (`dnsres/cache`, `dnsres/metrics`, etc.), third-party.
+- Group imports as: standard library, internal packages (`dnsres/internal/...`), public packages (`dnsres/metrics`, etc.), third-party.
 - Keep groups separated by a blank line.
 - Internal packages are only accessible within this module.
 - Public packages at root level can be imported by external projects.
@@ -193,7 +192,7 @@ Follow standard Go style plus the conventions below, inferred from the code.
 ## Testing Guidelines
 
 ### Unit Tests
-- Test files co-locate with implementation: `cache/sharded_test.go`, `health/health_test.go`, etc.
+- Test files co-locate with implementation: `health/health_test.go`, etc.
 - Use table-driven tests with `t.Run()` subtests.
 - Mock external dependencies where needed (DNS servers, time, etc.).
 

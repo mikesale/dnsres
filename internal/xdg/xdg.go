@@ -121,9 +121,6 @@ func createMinimalConfig(path string) error {
 			"threshold": 5,
 			"timeout":   "30s",
 		},
-		"cache": map[string]interface{}{
-			"max_size": 1000,
-		},
 	}
 
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)

@@ -41,7 +41,6 @@ graph TD
 
     subgraph "Resilience Layer"
         CB["Circuit Breaker<br/>(circuitbreaker/)"]
-        CACHE["Sharded Cache<br/>(cache/)"]
         POOL["Client Pool<br/>(dnspool/)"]
     end
 
@@ -74,7 +73,6 @@ graph TD
     RESOLVER -->|"loads"| CONFIG
     RESOLVER -->|"publishes"| EVENTS
     RESOLVER -->|"uses"| CB
-    RESOLVER -->|"uses"| CACHE
     RESOLVER -->|"uses"| POOL
     RESOLVER -->|"uses"| ANALYSIS
     RESOLVER -->|"updates"| METRICS
@@ -96,14 +94,13 @@ graph TD
 
 ### Component Interaction Matrix
 
-| From \ To | Resolver | Cache | CircuitBreaker | Pool | Metrics | Events |
-|-----------|----------|-------|----------------|------|---------|--------|
-| **Resolver** | - | Get/Set | Allow/Record | Get/Put | Update | Publish |
-| **Cache** | - | - | - | - | Update | - |
-| **CircuitBreaker** | - | - | - | - | Update | - |
-| **Pool** | - | - | - | - | Update | - |
-| **Health** | - | - | - | - | Update | - |
-| **TUI** | HealthSnapshot | - | - | - | - | Subscribe |
+| From \ To | Resolver | CircuitBreaker | Pool | Metrics | Events |
+|-----------|----------|----------------|------|---------|--------|
+| **Resolver** | - | Allow/Record | Get/Put | Update | Publish |
+| **CircuitBreaker** | - | - | - | Update | - |
+| **Pool** | - | - | - | Update | - |
+| **Health** | - | - | - | Update | - |
+| **TUI** | HealthSnapshot | - | - | - | Subscribe |
 
 ---
 
@@ -116,19 +113,13 @@ erDiagram
     Config ||--o{ Hostname : contains
     Config ||--o{ DNSServer : contains
     Config ||--|| CircuitBreakerConfig : has
-    Config ||--|| CacheConfig : has
     
     DNSResolver ||--|| Config : uses
     DNSResolver ||--o{ CircuitBreaker : manages
-    DNSResolver ||--|| ShardedCache : owns
     DNSResolver ||--|| ClientPool : owns
     DNSResolver ||--|| HealthChecker : owns
     DNSResolver ||--|| EventBus : owns
     DNSResolver ||--|| ResolutionStats : tracks
-    
-    ShardedCache ||--o{ CacheShard : contains
-    CacheShard ||--o{ CacheEntry : stores
-    CacheEntry ||--|| DNSResponse : wraps
     
     EventBus ||--o{ Subscriber : notifies
     Subscriber }o--o{ ResolverEvent : receives
@@ -151,15 +142,10 @@ erDiagram
         Duration timeout
     }
     
-    CacheConfig {
-        int64 max_size
-    }
-    
     DNSResolver {
         Config config
         ClientPool clientPool
         map_CircuitBreaker breakers
-        ShardedCache cache
         HealthChecker health
         Logger successLog
         Logger errorLog
@@ -176,18 +162,6 @@ erDiagram
         Time lastError
         string server
         State state
-    }
-    
-    ShardedCache {
-        CacheShard[] shards
-        int numShards
-        int64 maxSize
-    }
-    
-    CacheEntry {
-        DNSResponse Response
-        Time Expires
-        int64 Size
     }
     
     DNSResponse {
@@ -282,7 +256,6 @@ sequenceDiagram
     participant Events as EventBus
     participant Sem as Semaphore (10)
     participant CB as CircuitBreaker
-    participant Cache as ShardedCache
     participant Pool as ClientPool
     participant DNS as DNS Server
     participant Analysis as dnsanalysis
@@ -297,42 +270,33 @@ sequenceDiagram
         loop For each DNS server (concurrent)
             Resolver->>Resolver: resolveWithServer(ctx, server, hostname)
             
-            Resolver->>Cache: Get(hostname)
-            alt Cache Hit
-                Cache-->>Resolver: DNSResponse, true
-                Resolver->>Metrics: CacheHit.Inc()
-                Resolver->>Events: publish(EventResolveSuccess, source="cache")
-            else Cache Miss
-                Resolver->>Metrics: CacheMiss.Inc()
-                Resolver->>CB: Allow()
+            Resolver->>CB: Allow()
+            
+            alt Circuit Open
+                CB-->>Resolver: false
+                Resolver->>Metrics: Failure.Inc("circuit_breaker")
+                Resolver->>Events: publish(EventResolveFailure, source="circuit_breaker")
+            else Circuit Allows
+                CB-->>Resolver: true
+                Resolver->>Pool: Get(server)
+                Pool-->>Resolver: *dns.Client
                 
-                alt Circuit Open
-                    CB-->>Resolver: false
-                    Resolver->>Metrics: Failure.Inc("circuit_breaker")
-                    Resolver->>Events: publish(EventResolveFailure, source="circuit_breaker")
-                else Circuit Allows
-                    CB-->>Resolver: true
-                    Resolver->>Pool: Get(server)
-                    Pool-->>Resolver: *dns.Client
-                    
-                    Resolver->>DNS: ExchangeContext(msg, server)
-                    
-                    alt Query Success
-                        DNS-->>Resolver: *dns.Msg, duration
-                        Resolver->>CB: RecordSuccess()
-                        Resolver->>Metrics: Duration.Observe()
-                        Resolver->>Metrics: Success.Inc()
-                        Resolver->>Cache: Set(hostname, response, TTL)
-                        Resolver->>Events: publish(EventResolveSuccess, source="query")
-                    else Query Failure
-                        DNS-->>Resolver: error
-                        Resolver->>CB: RecordFailure()
-                        Resolver->>Metrics: Failure.Inc("query_error")
-                        Resolver->>Events: publish(EventResolveFailure)
-                    end
-                    
-                    Resolver->>Pool: Put(server, client)
+                Resolver->>DNS: ExchangeContext(msg, server)
+                
+                alt Query Success
+                    DNS-->>Resolver: *dns.Msg, duration
+                    Resolver->>CB: RecordSuccess()
+                    Resolver->>Metrics: Duration.Observe()
+                    Resolver->>Metrics: Success.Inc()
+                    Resolver->>Events: publish(EventResolveSuccess, source="query")
+                else Query Failure
+                    DNS-->>Resolver: error
+                    Resolver->>CB: RecordFailure()
+                    Resolver->>Metrics: Failure.Inc("query_error")
+                    Resolver->>Events: publish(EventResolveFailure)
                 end
+                
+                Resolver->>Pool: Put(server, client)
             end
         end
         
@@ -540,10 +504,6 @@ dnsres/
 │   └── integration/              # End-to-end integration tests
 │       └── dnsres_e2e_test.go   # Build tag: //go:build integration
 │
-├── cache/                        # Public: High-performance caching
-│   ├── sharded.go               # ShardedCache, CacheShard, CacheEntry
-│   └── sharded_test.go          # Cache unit tests
-│
 ├── circuitbreaker/               # Public: Fault tolerance pattern
 │   ├── circuitbreaker.go        # CircuitBreaker, State enum, Allow(), Record*()
 │   ├── errors.go                # ErrCircuitOpen sentinel error
@@ -608,7 +568,6 @@ graph BT
     subgraph "Public Packages (importable)"
         METRICS["metrics"]
         INSTR["instrumentation"]
-        CACHE["cache"]
         CB["circuitbreaker"]
         POOL["dnspool"]
         ANALYSIS["dnsanalysis"]
@@ -628,8 +587,6 @@ graph BT
 
     %% Dependencies
     METRICS --> PROM
-    CACHE --> METRICS
-    CACHE --> ANALYSIS
     CB --> METRICS
     POOL --> DNS
     POOL --> METRICS
@@ -638,7 +595,6 @@ graph BT
     HEALTH --> METRICS
     HEALTH --> INSTR
 
-    DNSRES --> CACHE
     DNSRES --> CB
     DNSRES --> POOL
     DNSRES --> ANALYSIS
@@ -703,8 +659,6 @@ make coverage       # Generate coverage report
 | `dns_resolution_duration_seconds` | Histogram | server, hostname | Query latency |
 | `dns_resolution_consistency` | Gauge | hostname | Cross-server consistency (1=match) |
 | `circuit_breaker_state` | Gauge | server | 0=Closed, 1=Open, 2=HalfOpen |
-| `dns_resolver_cache_size` | Gauge | - | Current cache entries |
-| `dns_resolver_cache_hits_total` | Counter | - | Cache hit count |
 
 ### Log Files
 
@@ -729,9 +683,6 @@ make coverage       # Generate coverage report
   "circuit_breaker": {
     "threshold": 5,                        // Failures before open
     "timeout": "30s"                       // Reset timeout
-  },
-  "cache": {
-    "max_size": 1000                       // Max cache entries
   }
 }
 ```

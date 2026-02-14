@@ -52,9 +52,6 @@ type Config struct {
 		Threshold int      `json:"threshold"`
 		Timeout   Duration `json:"timeout"`
 	} `json:"circuit_breaker"`
-	Cache struct {
-		MaxSize int64 `json:"max_size"`
-	} `json:"cache"`
 }
 
 // DefaultConfig returns a base configuration with built-in defaults.
@@ -82,7 +79,6 @@ func DefaultConfig() *Config {
 	config.InstrumentationLevel = "none"
 	config.CircuitBreaker.Threshold = 5
 	config.CircuitBreaker.Timeout = Duration{Duration: 30 * time.Second}
-	config.Cache.MaxSize = 1000
 	return config
 }
 
@@ -105,9 +101,6 @@ func (c *Config) Validate() error {
 	}
 	if c.CircuitBreaker.Timeout.Duration <= 0 {
 		return fmt.Errorf("invalid circuit breaker timeout")
-	}
-	if c.Cache.MaxSize <= 0 {
-		return fmt.Errorf("invalid cache max size")
 	}
 	if _, err := instrumentation.ParseLevel(c.InstrumentationLevel); err != nil {
 		return fmt.Errorf("invalid instrumentation level: %w", err)
@@ -162,9 +155,6 @@ func validateConfig(cfg *Config) error {
 	}
 	if cfg.CircuitBreaker.Timeout.Duration <= 0 {
 		return errors.New("circuit breaker timeout must be positive")
-	}
-	if cfg.Cache.MaxSize <= 0 {
-		return errors.New("cache max size must be positive")
 	}
 	if _, err := instrumentation.ParseLevel(cfg.InstrumentationLevel); err != nil {
 		return fmt.Errorf("invalid instrumentation level: %w", err)

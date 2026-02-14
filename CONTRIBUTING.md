@@ -56,7 +56,6 @@ Thank you for your interest in contributing to the DNS Resolution Monitor projec
 
 ```
 dnsres/
-├── cache/           # DNS response caching
 ├── circuitbreaker/  # Circuit breaker implementation
 ├── dnsanalysis/     # DNS response analysis
 ├── health/          # Health check functionality

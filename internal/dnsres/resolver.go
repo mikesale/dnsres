@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"dnsres/cache"
 	"dnsres/circuitbreaker"
 	"dnsres/dnsanalysis"
 	"dnsres/dnspool"
@@ -27,7 +26,6 @@ type DNSResolver struct {
 	config                *Config
 	clientPool            *dnspool.ClientPool
 	breakers              map[string]*circuitbreaker.CircuitBreaker
-	cache                 *cache.ShardedCache
 	health                *health.HealthChecker
 	successLog            *log.Logger
 	errorLog              *log.Logger
@@ -74,9 +72,6 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		)
 	}
 
-	// Initialize sharded cache
-	cache := cache.NewShardedCache(config.Cache.MaxSize, 16)
-
 	// Initialize health checker
 	level, err := instrumentation.ParseLevel(config.InstrumentationLevel)
 	if err != nil {
@@ -98,7 +93,6 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		config:                config,
 		clientPool:            clientPool,
 		breakers:              breakers,
-		cache:                 cache,
 		health:                healthChecker,
 		successLog:            successLog,
 		errorLog:              errorLog,
@@ -327,23 +321,6 @@ func (r *DNSResolver) resolveAll(ctx context.Context) {
 
 // resolveWithServer resolves a hostname using a specific DNS server
 func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname string) (*dnsanalysis.DNSResponse, error) {
-	// Check cache first
-	if cached, ok := r.cache.Get(hostname); ok {
-		metrics.DNSResolutionCacheHit.WithLabelValues(server, hostname).Inc()
-		r.appLogf(instrumentation.Low, "cache hit hostname=%s server=%s", hostname, server)
-		r.emitEvent(ResolverEvent{
-			Type:      EventResolveSuccess,
-			Time:      time.Now(),
-			Hostname:  hostname,
-			Server:    server,
-			Addresses: append([]string(nil), cached.Addresses...),
-			Source:    "cache",
-		})
-		return cached, nil
-	}
-	metrics.DNSResolutionCacheMiss.WithLabelValues(server, hostname).Inc()
-	r.appLogf(instrumentation.Low, "cache miss hostname=%s server=%s", hostname, server)
-
 	// Check circuit breaker
 	if !r.breakers[server].Allow() {
 		metrics.DNSResolutionFailure.WithLabelValues(server, hostname, "circuit_breaker").Inc()
@@ -463,9 +440,6 @@ func (r *DNSResolver) resolveWithServer(ctx context.Context, server, hostname st
 			dnsResponse.Addresses = append(dnsResponse.Addresses, a.A.String())
 		}
 	}
-
-	// Cache the response
-	r.cache.Set(hostname, dnsResponse, time.Duration(ttl)*time.Second)
 
 	r.emitEvent(ResolverEvent{
 		Type:      EventResolveSuccess,

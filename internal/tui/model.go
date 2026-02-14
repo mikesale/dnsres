@@ -415,9 +415,6 @@ func uniqueSorted(values []string) []string {
 }
 
 func formatDuration(duration time.Duration, source string) string {
-	if source == "cache" {
-		return "cache hit"
-	}
 	if duration == 0 {
 		return source
 	}

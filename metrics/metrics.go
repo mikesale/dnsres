@@ -153,51 +153,6 @@ var (
 		[]string{"server", "hostname", "protocol"},
 	)
 
-	DNSResolutionCacheHit = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "dns_resolution_cache_hit",
-			Help: "Number of cache hits",
-		},
-		[]string{"server", "hostname"},
-	)
-
-	DNSResolutionCacheMiss = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "dns_resolution_cache_miss",
-			Help: "Number of cache misses",
-		},
-		[]string{"server", "hostname"},
-	)
-
-	// Cache metrics
-	CacheSize = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "dns_resolver_cache_size",
-			Help: "Current number of entries in the DNS cache",
-		},
-	)
-
-	CacheHits = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "dns_resolver_cache_hits_total",
-			Help: "Total number of cache hits",
-		},
-	)
-
-	CacheMisses = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "dns_resolver_cache_misses_total",
-			Help: "Total number of cache misses",
-		},
-	)
-
-	CacheEvictions = promauto.NewCounter(
-		prometheus.CounterOpts{
-			Name: "dns_resolver_cache_evictions_total",
-			Help: "Total number of cache evictions",
-		},
-	)
-
 	// Circuit Breaker Metrics
 	CircuitBreakerState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{

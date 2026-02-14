@@ -59,12 +59,6 @@ Returns Prometheus metrics for the DNS resolver.
 - `circuit_breaker_failures`: Consecutive failures
 - `dns_circuit_breaker_trips_total`: Circuit breaker trips
 
-##### Cache Metrics
-- `dns_cache_size`: Current cache size
-- `dns_cache_hits_total`: Cache hits
-- `dns_cache_misses_total`: Cache misses
-- `dns_cache_evictions_total`: Cache evictions
-
 ##### Health Check Metrics
 - `dns_resolver_health_status`: Component health status
 - `dns_resolver_health_check_duration_seconds`: Health check duration
@@ -118,9 +112,6 @@ Returns Prometheus metrics for the DNS resolver.
   "circuit_breaker": {
     "threshold": 5,
     "timeout": "30s"
-  },
-  "cache": {
-    "max_size": 1000
   }
 }
 ```
@@ -137,8 +128,6 @@ Returns Prometheus metrics for the DNS resolver.
 - `circuit_breaker`: Circuit breaker configuration
   - `threshold`: Number of failures before opening (default: 5)
   - `timeout`: Time to wait before resetting (default: "30s")
-- `cache`: Cache configuration
-  - `max_size`: Maximum number of cache entries (default: 1000)
 - `health_port`: Health check endpoint port (default: 8080)
 - `metrics_port`: Metrics endpoint port (default: 9090)
 - `log_dir`: Log directory (default: "logs")
