@@ -33,7 +33,7 @@ Use the Makefile targets first; they encode repo-specific behavior.
 - `make coverage` (generates coverage report)
 
 ### Running a Single Test
-The repository contains 13 test files across multiple packages:
+The repository contains 16 test files across multiple packages:
 - Unit tests: `circuitbreaker/`, `dnsanalysis/`, `health/`, `metrics/`, `instrumentation/`
 - Package tests: `internal/dnsres/` (resolver, cycle, loop tests)
 - Integration tests: `internal/integration/` (E2E tests with build tag)

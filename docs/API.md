@@ -33,35 +33,26 @@ Returns Prometheus metrics for the DNS resolver.
 #### Available Metrics
 
 ##### DNS Resolution Metrics
-- `dns_resolution_total`: Total resolution attempts
-- `dns_resolution_success`: Successful resolutions
-- `dns_resolution_failure`: Failed resolutions
-- `dns_resolution_duration_seconds`: Resolution duration
-- `dns_resolution_consistency`: Response consistency
-- `dns_response_size_bytes`: Size of DNS responses
-- `dns_record_count`: Number of records in responses
-- `dns_resolution_latency_seconds`: Latency between servers
-- `dns_resolution_ttl_seconds`: TTL values from responses
-- `dns_resolution_retries_total`: Retry attempts
-- `dns_resolution_timeout_total`: Timeout occurrences
-- `dns_resolution_nxdomain_total`: NXDOMAIN responses
-- `dns_resolution_servfail_total`: SERVFAIL responses
-- `dns_resolution_refused_total`: REFUSED responses
-- `dns_resolution_rate_limit_total`: Rate limit occurrences
-- `dns_resolution_network_error_total`: Network-related errors
-- `dns_resolution_dnssec_total`: DNSSEC validation results
-- `dns_resolution_edns_support`: EDNS support status
-- `dns_resolution_dnssec_support`: DNSSEC support status
-- `dns_resolution_protocol_total`: Protocol usage
+- `dns_resolution_total`: Total number of DNS resolution attempts (Counter)
+  - Labels: `server`, `hostname`
+- `dns_resolution_success`: Number of successful DNS resolutions (Counter)
+  - Labels: `server`, `hostname`
+- `dns_resolution_failure`: Number of failed DNS resolutions (Counter)
+  - Labels: `server`, `hostname`, `error_type`
+- `dns_resolution_duration_seconds`: DNS resolution duration in seconds (Histogram)
+  - Labels: `server`, `hostname`
+- `dns_resolution_consistency`: Whether DNS responses are consistent across servers (Gauge)
+  - Labels: `hostname`
+- `dns_resolution_cycle_duration_seconds`: Duration of a full resolution cycle in seconds (Histogram)
+- `dns_response_size_bytes`: Size of DNS responses in bytes (Histogram)
+  - Labels: `server`, `hostname`
 
 ##### Circuit Breaker Metrics
-- `circuit_breaker_state`: Current state (0=Closed, 1=Open, 2=Half-Open)
-- `circuit_breaker_failures`: Consecutive failures
-- `dns_circuit_breaker_trips_total`: Circuit breaker trips
-
-##### Health Check Metrics
-- `dns_resolver_health_status`: Component health status
-- `dns_resolver_health_check_duration_seconds`: Health check duration
+- `circuit_breaker_state`: Current state of circuit breaker (Gauge)
+  - Labels: `server`
+  - Values: 0=Closed, 1=Open, 2=Half-Open
+- `circuit_breaker_failures`: Number of consecutive failures for each server (Counter)
+  - Labels: `server`
 
 ## Command Line Interface
 
@@ -99,16 +90,13 @@ Returns Prometheus metrics for the DNS resolver.
 ```json
 {
   "hostnames": ["example.com"],
-  "dns_servers": ["8.8.8.8", "1.1.1.1"],
+  "dns_servers": ["8.8.8.8:53", "1.1.1.1:53"],
   "query_timeout": "5s",
-  "query_interval": "1m",
-  "failure_threshold": 5,
-  "reset_timeout": "30s",
-  "half_open_timeout": "5s",
-  "max_cache_ttl": "1h",
-  "health_port": 8080,
-  "metrics_port": 9090,
+  "query_interval": "30s",
+  "health_port": 8880,
+  "metrics_port": 9990,
   "log_dir": "logs",
+  "instrumentation_level": "none",
   "circuit_breaker": {
     "threshold": 5,
     "timeout": "30s"
@@ -120,17 +108,18 @@ Returns Prometheus metrics for the DNS resolver.
 
 #### Required Fields
 - `hostnames`: List of hostnames to monitor
-- `dns_servers`: List of DNS server IP addresses
-- `query_timeout`: Timeout for DNS queries
-- `query_interval`: Interval between resolution checks
+- `dns_servers`: List of DNS server addresses (port :53 appended if missing)
+- `query_timeout`: Timeout for each DNS query (e.g., "5s")
+- `query_interval`: Interval between resolution checks (e.g., "30s")
 
 #### Optional Fields
+- `health_port`: Health check endpoint port (default: 8880)
+- `metrics_port`: Prometheus metrics endpoint port (default: 9990)
+- `log_dir`: Directory for log files (default: XDG state directory or $HOME/logs)
+- `instrumentation_level`: Debug logging level: "none", "low", "medium", "high", "critical" (default: "none")
 - `circuit_breaker`: Circuit breaker configuration
-  - `threshold`: Number of failures before opening (default: 5)
-  - `timeout`: Time to wait before resetting (default: "30s")
-- `health_port`: Health check endpoint port (default: 8080)
-- `metrics_port`: Metrics endpoint port (default: 9090)
-- `log_dir`: Log directory (default: "logs")
+  - `threshold`: Number of consecutive failures before opening (default: 5)
+  - `timeout`: Time to wait before attempting to close (default: "30s")
 
 ## Logging API
 
