@@ -17,7 +17,7 @@ At runtime the application follows this lifecycle:
 
 1. Parse CLI flags and load configuration.
 2. Validate configuration and normalize DNS server addresses (ensure `:53`).
-3. Initialize core components (loggers, client pool, circuit breakers,
+3. Initialize core components (loggers, circuit breakers,
    health checker, metrics).
 4. Start HTTP servers for health and Prometheus metrics.
 5. Start the resolution loop that continuously queries DNS servers.
@@ -54,19 +54,12 @@ These are used consistently across the system to separate concerns.
 ### DNSResolver (orchestrator)
 `DNSResolver` owns and coordinates the system:
 - `config` (validated configuration)
-- `clientPool` (`dnspool.ClientPool`)
 - `breakers` (`circuitbreaker.CircuitBreaker` per server)
 - `health` (`health.HealthChecker`)
 - `successLog`, `errorLog`, `appLog`
 - `stats` (in-memory counters used by report mode)
 
 Creation: `NewDNSResolver` sets up all dependencies and seeds per-server stats.
-
-### Client Pool (`dnspool`)
-The client pool reuses `*dns.Client` instances keyed by server address:
-- Limits pool size per server.
-- Applies per-request timeout from configuration.
-- Records protocol metrics for pooled/new/returned/dropped usage.
 
 ### Circuit Breaker (`circuitbreaker`)
 Each DNS server has its own circuit breaker that tracks failures:
@@ -102,7 +95,7 @@ The resolution loop runs in `DNSResolver.Start` and `resolveAll`.
 
 4. **Per-server resolution path (resolveWithServer):**
    - **Circuit breaker:** call `Allow` before issuing network requests.
-   - **Client pool:** get a DNS client (reused or new).
+   - **Create** a DNS client for the query.
    - **Query:** send DNS request with `ExchangeContext`.
    - **Metrics and stats:**
      - Record success/failure counts.
@@ -132,7 +125,6 @@ The resolution loop runs in `DNSResolver.Start` and `resolveAll`.
 
 Key synchronization points:
 - Circuit breaker: `Mutex` for per-server counters and timestamps.
-- Client pool: `Mutex` protects shared map of clients.
 - Health checker: `RWMutex` protects status map.
 
 Care is taken to keep lock scopes small and avoid I/O while locked.
@@ -157,8 +149,8 @@ When adding functionality:
 ## Component Map
 
 - Orchestration: `dnsres.go`
-- DNS queries: `dnspool/pool.go`, `dnsres.go` (`resolveWithServer`)
+- DNS queries: `resolver.go` (`resolveWithServer`)
 - Circuit breaker: `circuitbreaker/circuitbreaker.go`
-- Response analysis: `dnsanalysis/dnsanalysis.go`
+- Response types and comparison: `dnsanalysis/dnsanalysis.go`
 - Health checks: `health/health.go`
 - Metrics: `metrics/metrics.go`

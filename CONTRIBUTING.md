@@ -57,7 +57,7 @@ Thank you for your interest in contributing to the DNS Resolution Monitor projec
 ```
 dnsres/
 ├── circuitbreaker/  # Circuit breaker implementation
-├── dnsanalysis/     # DNS response analysis
+├── dnsanalysis/     # DNS response types and comparison
 ├── health/          # Health check functionality
 ├── metrics/         # Prometheus metrics
 ├── dnsres.go        # Main application

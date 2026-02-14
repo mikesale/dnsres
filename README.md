@@ -157,12 +157,10 @@ The tool uses a `config.json` file for configuration. See the example at
 ## Architecture
 
 The tool is built with a modular architecture:
-
-- `dnspool`: Manages a pool of DNS clients for efficient resolution
 - `circuitbreaker`: Implements the circuit breaker pattern
 - `health`: Provides health check functionality
 - `metrics`: Exposes Prometheus metrics
-- `dnsanalysis`: Analyzes DNS responses and compares results
+- `dnsanalysis`: DNS response types and consistency comparison
 
 ## Circuit Breaker Pattern
 

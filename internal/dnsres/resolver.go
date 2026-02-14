@@ -12,7 +12,6 @@ import (
 
 	"dnsres/circuitbreaker"
 	"dnsres/dnsanalysis"
-	"dnsres/dnspool"
 	"dnsres/health"
 	"dnsres/instrumentation"
 	"dnsres/metrics"
@@ -24,7 +23,6 @@ import (
 // DNSResolver represents a DNS resolution tool
 type DNSResolver struct {
 	config                *Config
-	clientPool            *dnspool.ClientPool
 	breakers              map[string]*circuitbreaker.CircuitBreaker
 	health                *health.HealthChecker
 	successLog            *log.Logger
@@ -59,9 +57,6 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 		return nil, fmt.Errorf("failed to setup loggers: %w", err)
 	}
 
-	// Initialize client pool
-	clientPool := dnspool.NewClientPool(100, config.QueryTimeout.Duration)
-
 	// Initialize circuit breakers
 	breakers := make(map[string]*circuitbreaker.CircuitBreaker)
 	for _, server := range config.DNSServers {
@@ -91,7 +86,6 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 
 	resolver := &DNSResolver{
 		config:                config,
-		clientPool:            clientPool,
 		breakers:              breakers,
 		health:                healthChecker,
 		successLog:            successLog,
@@ -111,15 +105,9 @@ func NewDNSResolver(config *Config) (*DNSResolver, error) {
 	resolver.resolveAllFunc = resolver.resolveAll
 	resolver.resolveWithServerFunc = resolver.resolveWithServer
 	resolver.getClient = func(server string) (dnsClient, error) {
-		return clientPool.Get(server)
+		return &dns.Client{Timeout: config.QueryTimeout.Duration}, nil
 	}
-	resolver.putClient = func(server string, client dnsClient) {
-		dnsClient, ok := client.(*dns.Client)
-		if !ok {
-			return
-		}
-		clientPool.Put(server, dnsClient)
-	}
+	resolver.putClient = func(string, dnsClient) {}
 
 	resolver.appLogf(
 		instrumentation.Low,

@@ -41,7 +41,6 @@ graph TD
 
     subgraph "Resilience Layer"
         CB["Circuit Breaker<br/>(circuitbreaker/)"]
-        POOL["Client Pool<br/>(dnspool/)"]
     end
 
     subgraph "Observability"
@@ -52,7 +51,7 @@ graph TD
     end
 
     subgraph "Analysis"
-        ANALYSIS["DNS Analysis<br/>(dnsanalysis/)"]
+        ANALYSIS["DNS Types<br/>(dnsanalysis/)"]
     end
 
     subgraph "External Systems"
@@ -73,15 +72,14 @@ graph TD
     RESOLVER -->|"loads"| CONFIG
     RESOLVER -->|"publishes"| EVENTS
     RESOLVER -->|"uses"| CB
-    RESOLVER -->|"uses"| POOL
     RESOLVER -->|"uses"| ANALYSIS
     RESOLVER -->|"updates"| METRICS
     RESOLVER -->|"writes"| LOGS
     RESOLVER -->|"creates"| HEALTH
     
-    POOL -->|"DNS queries"| DNS1
-    POOL -->|"DNS queries"| DNS2
-    POOL -->|"DNS queries"| DNSN
+    RESOLVER -->|"DNS queries"| DNS1
+    RESOLVER -->|"DNS queries"| DNS2
+    RESOLVER -->|"DNS queries"| DNSN
     
     HEALTH -->|"TCP probes"| DNS1
     HEALTH -->|"TCP probes"| DNS2
@@ -256,7 +254,6 @@ sequenceDiagram
     participant Events as EventBus
     participant Sem as Semaphore (10)
     participant CB as CircuitBreaker
-    participant Pool as ClientPool
     participant DNS as DNS Server
     participant Analysis as dnsanalysis
     participant Metrics as Prometheus
@@ -278,8 +275,7 @@ sequenceDiagram
                 Resolver->>Events: publish(EventResolveFailure, source="circuit_breaker")
             else Circuit Allows
                 CB-->>Resolver: true
-                Resolver->>Pool: Get(server)
-                Pool-->>Resolver: *dns.Client
+                Resolver->>Resolver: create dns.Client
                 
                 Resolver->>DNS: ExchangeContext(msg, server)
                 
@@ -296,7 +292,7 @@ sequenceDiagram
                     Resolver->>Events: publish(EventResolveFailure)
                 end
                 
-                Resolver->>Pool: Put(server, client)
+
             end
         end
         
@@ -509,13 +505,9 @@ dnsres/
 │   ├── errors.go                # ErrCircuitOpen sentinel error
 │   └── *_test.go                # Circuit breaker tests
 │
-├── dnspool/                      # Public: DNS client connection pooling
-│   ├── pool.go                  # ClientPool, Get(), Put()
-│   └── pool_test.go             # Pool tests
-│
-├── dnsanalysis/                  # Public: DNS response analysis
-│   ├── dnsanalysis.go           # DNSResponse, AnalyzeResponse(), CompareResponses()
-│   └── dnsanalysis_test.go      # Analysis tests
+├── dnsanalysis/                  # Public: DNS response types and comparison
+│   ├── dnsanalysis.go           # DNSResponse, CompareResponses()
+│   └── dnsanalysis_test.go      # Comparison tests
 │
 ├── health/                       # Public: HTTP health endpoint
 │   ├── health.go                # HealthChecker, ServeHTTP(), checkLoop()
@@ -569,7 +561,6 @@ graph BT
         METRICS["metrics"]
         INSTR["instrumentation"]
         CB["circuitbreaker"]
-        POOL["dnspool"]
         ANALYSIS["dnsanalysis"]
         HEALTH["health"]
     end
@@ -588,15 +579,11 @@ graph BT
     %% Dependencies
     METRICS --> PROM
     CB --> METRICS
-    POOL --> DNS
-    POOL --> METRICS
     ANALYSIS --> DNS
-    ANALYSIS --> METRICS
     HEALTH --> METRICS
     HEALTH --> INSTR
 
     DNSRES --> CB
-    DNSRES --> POOL
     DNSRES --> ANALYSIS
     DNSRES --> HEALTH
     DNSRES --> METRICS

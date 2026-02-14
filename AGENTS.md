@@ -34,7 +34,7 @@ Use the Makefile targets first; they encode repo-specific behavior.
 
 ### Running a Single Test
 The repository contains 13 test files across multiple packages:
-- Unit tests: `circuitbreaker/`, `dnsanalysis/`, `dnspool/`, `health/`, `metrics/`, `instrumentation/`
+- Unit tests: `circuitbreaker/`, `dnsanalysis/`, `health/`, `metrics/`, `instrumentation/`
 - Package tests: `internal/dnsres/` (resolver, cycle, loop tests)
 - Integration tests: `internal/integration/` (E2E tests with build tag)
 
@@ -80,8 +80,7 @@ Integration tests use the `//go:build integration` build tag and require the ful
 
 ### Public Packages (root-level, importable by external code)
 - `circuitbreaker/`: circuit breaker pattern with metrics integration
-- `dnspool/`: DNS client pooling for connection reuse
-- `dnsanalysis/`: DNS response analysis and consistency checking
+- `dnsanalysis/`: DNS response types and consistency comparison
 - `health/`: HTTP health check endpoint
 - `metrics/`: Prometheus metric definitions and registration
 - `instrumentation/`: debug instrumentation level parsing (`none`, `low`, `medium`, `high`, `critical`)
@@ -146,7 +145,7 @@ Follow standard Go style plus the conventions below, inferred from the code.
 ### DNS and Networking Conventions
 - DNS servers should include ports; if missing, append `:53`.
 - Use `context.Context` for request lifetimes and cancellation.
-- Prefer pooled clients from `dnspool` where available.
+- DNS clients are created per-query with the configured timeout.
 
 ### Event System
 - The resolver publishes events via an internal event bus (`internal/dnsres/events.go`).
