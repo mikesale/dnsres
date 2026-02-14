@@ -52,11 +52,14 @@ func (b *eventBus) subscribe(buffer int) (<-chan ResolverEvent, func()) {
 	b.subs[ch] = struct{}{}
 	b.mu.Unlock()
 
+	var once sync.Once
 	return ch, func() {
-		b.mu.Lock()
-		delete(b.subs, ch)
-		b.mu.Unlock()
-		close(ch)
+		once.Do(func() {
+			b.mu.Lock()
+			delete(b.subs, ch)
+			b.mu.Unlock()
+			close(ch)
+		})
 	}
 }
 
