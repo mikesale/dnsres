@@ -2,11 +2,9 @@ package dnsres
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	"dnsres/instrumentation"
@@ -120,8 +118,6 @@ func LoadConfig(path string) (*Config, error) {
 	if err := json.NewDecoder(file).Decode(&config); err != nil {
 		return nil, fmt.Errorf("failed to decode config file: %v", err)
 	}
-	config.InstrumentationLevel = normalizeInstrumentationLevel(config.InstrumentationLevel)
-
 	// Ensure DNS servers have ports
 	for i, server := range config.DNSServers {
 		if _, _, err := net.SplitHostPort(server); err != nil {
@@ -129,44 +125,11 @@ func LoadConfig(path string) (*Config, error) {
 		}
 	}
 
-	if err := validateConfig(&config); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %v", err)
 	}
 
 	return &config, nil
-}
-
-// validateConfig validates the configuration values
-func validateConfig(cfg *Config) error {
-	if len(cfg.Hostnames) == 0 {
-		return errors.New("at least one hostname must be specified")
-	}
-	if len(cfg.DNSServers) == 0 {
-		return errors.New("at least one DNS server must be specified")
-	}
-	if cfg.QueryTimeout.Duration <= 0 {
-		return errors.New("query timeout must be positive")
-	}
-	if cfg.QueryInterval.Duration <= 0 {
-		return errors.New("query interval must be positive")
-	}
-	if cfg.CircuitBreaker.Threshold <= 0 {
-		return errors.New("circuit breaker threshold must be positive")
-	}
-	if cfg.CircuitBreaker.Timeout.Duration <= 0 {
-		return errors.New("circuit breaker timeout must be positive")
-	}
-	if _, err := instrumentation.ParseLevel(cfg.InstrumentationLevel); err != nil {
-		return fmt.Errorf("invalid instrumentation level: %w", err)
-	}
-	return nil
-}
-
-func normalizeInstrumentationLevel(value string) string {
-	if strings.TrimSpace(value) == "" {
-		return "none"
-	}
-	return strings.ToLower(strings.TrimSpace(value))
 }
 
 // ResolveConfigPath determines which config file to use.
@@ -191,6 +154,38 @@ func ResolveConfigPath(explicitPath string) (string, bool, error) {
 	}
 
 	return xdgPath, wasCreated, nil
+}
+
+// BootstrapConfig resolves, loads, and applies overrides to produce a ready-to-use Config.
+// Returns the config, the resolved config file path, whether the file was auto-created, and any error.
+func BootstrapConfig(configFlag, hostFlag, positionalHost string) (*Config, string, bool, error) {
+	configPath, wasCreated, err := ResolveConfigPath(configFlag)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("failed to resolve config path: %w", err)
+	}
+
+	var config *Config
+	if configPath == "" {
+		config = DefaultConfig()
+	} else {
+		config, err = LoadConfig(configPath)
+		if err != nil {
+			return nil, "", false, fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+
+	// Positional arg takes precedence over -host flag
+	if positionalHost != "" {
+		config.Hostnames = []string{positionalHost}
+	} else if hostFlag != "" {
+		config.Hostnames = []string{hostFlag}
+	}
+
+	if len(config.Hostnames) == 0 {
+		return nil, "", false, fmt.Errorf("hostname required: provide a domain as the first argument or use -host")
+	}
+
+	return config, configPath, wasCreated, nil
 }
 
 // fileExists checks if a file exists and is not a directory.

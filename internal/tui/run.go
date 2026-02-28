@@ -24,30 +24,9 @@ func Run() error {
 		positionalHost = strings.TrimSpace(args[0])
 	}
 
-	// Resolve config path
-	configPath, _, err := dnsres.ResolveConfigPath(*configFile)
+	config, _, _, err := dnsres.BootstrapConfig(*configFile, *hostname, positionalHost)
 	if err != nil {
-		return fmt.Errorf("failed to resolve config path: %w", err)
-	}
-
-	var config *dnsres.Config
-	if configPath == "" {
-		config = dnsres.DefaultConfig()
-	} else {
-		config, err = dnsres.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-	}
-
-	if positionalHost != "" {
-		config.Hostnames = []string{positionalHost}
-	} else if *hostname != "" {
-		config.Hostnames = []string{*hostname}
-	}
-
-	if len(config.Hostnames) == 0 {
-		return fmt.Errorf("hostname required: provide a domain as the first argument or use -host")
+		return err
 	}
 
 	resolver, err := dnsres.NewDNSResolver(config)

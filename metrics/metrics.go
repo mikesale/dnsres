@@ -77,7 +77,7 @@ var (
 	CircuitBreakerFailures = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "circuit_breaker_failures",
-			Help: "Number of consecutive failures for each server",
+			Help: "Total circuit breaker failure events per server",
 		},
 		[]string{"server"},
 	)
