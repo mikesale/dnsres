@@ -47,7 +47,7 @@ func TestModelStatusMessage(t *testing.T) {
 		}
 
 		// Verify NO fallback notice when using custom path
-		if strings.Contains(m.statusMsg, "fallback") {
+		if strings.Contains(m.statusMsg, "(fallback)") {
 			t.Errorf("expected NO fallback notice for custom log directory, got: %s", m.statusMsg)
 		}
 
