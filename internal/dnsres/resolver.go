@@ -46,7 +46,6 @@ type dnsClient interface {
 
 // NewDNSResolver creates a new DNS resolver
 func NewDNSResolver(config *Config) (*DNSResolver, error) {
-	config.InstrumentationLevel = normalizeInstrumentationLevel(config.InstrumentationLevel)
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}

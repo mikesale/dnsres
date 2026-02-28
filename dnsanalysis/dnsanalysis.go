@@ -1,24 +1,11 @@
 package dnsanalysis
 
-import (
-	"time"
-
-	"github.com/miekg/dns"
-)
-
 // DNSResponse represents a DNS resolution response
 type DNSResponse struct {
-	Server      string
-	Hostname    string
-	Addresses   []string
-	Response    *dns.Msg
-	RecordCount map[string]int
-	TTL         uint32
-	Size        int
-	DNSSEC      bool
-	EDNS        bool
-	Protocol    string
-	Duration    time.Duration
+	Server    string
+	Hostname  string
+	Addresses []string
+	TTL       uint32
 }
 
 // CompareResponses compares multiple DNS responses for consistency

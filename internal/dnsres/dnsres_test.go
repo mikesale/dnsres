@@ -23,13 +23,13 @@ func TestValidateConfigInstrumentationLevel(t *testing.T) {
 
 	valid := base
 	valid.InstrumentationLevel = "HiGh"
-	if err := validateConfig(&valid); err != nil {
+	if err := valid.Validate(); err != nil {
 		t.Fatalf("expected valid instrumentation level, got error: %v", err)
 	}
 
 	invalid := base
 	invalid.InstrumentationLevel = "verbose"
-	if err := validateConfig(&invalid); err == nil {
+	if err := invalid.Validate(); err == nil {
 		t.Fatalf("expected error for invalid instrumentation level")
 	}
 }
@@ -66,34 +66,6 @@ func TestLoadConfigNormalizesDNSServerPorts(t *testing.T) {
 	}
 	if cfg.DNSServers[1] != "1.1.1.1:54" {
 		t.Fatalf("expected existing port preserved, got %s", cfg.DNSServers[1])
-	}
-}
-
-func TestNormalizeInstrumentationLevel(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "empty",
-			input:    "   ",
-			expected: "none",
-		},
-		{
-			name:     "lowercase",
-			input:    "LoW",
-			expected: "low",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := normalizeInstrumentationLevel(tt.input)
-			if got != tt.expected {
-				t.Fatalf("expected %q, got %q", tt.expected, got)
-			}
-		})
 	}
 }
 
