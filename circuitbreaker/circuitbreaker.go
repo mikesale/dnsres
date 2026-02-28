@@ -50,7 +50,6 @@ func (cb *CircuitBreaker) Allow() bool {
 		metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Closed))
 	}
 
-	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Inc()
 	return true
 }
 
@@ -60,7 +59,6 @@ func (cb *CircuitBreaker) RecordSuccess() {
 	defer cb.mu.Unlock()
 	cb.failures = 0
 	metrics.CircuitBreakerState.WithLabelValues(cb.server).Set(float64(Closed))
-	metrics.CircuitBreakerFailures.WithLabelValues(cb.server).Inc()
 }
 
 // RecordFailure records a failed operation
@@ -88,22 +86,6 @@ func (cb *CircuitBreaker) GetState() string {
 		return "half-open"
 	}
 	return "closed"
-}
-
-// Execute runs the given function with circuit breaker protection
-func (cb *CircuitBreaker) Execute(fn func() (interface{}, error)) (interface{}, error) {
-	if !cb.Allow() {
-		return nil, ErrCircuitOpen
-	}
-
-	result, err := fn()
-	if err != nil {
-		cb.RecordFailure()
-		return nil, err
-	}
-
-	cb.RecordSuccess()
-	return result, nil
 }
 
 // GetFailures returns the current failure count
