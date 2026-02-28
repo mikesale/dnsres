@@ -193,6 +193,38 @@ func ResolveConfigPath(explicitPath string) (string, bool, error) {
 	return xdgPath, wasCreated, nil
 }
 
+// BootstrapConfig resolves, loads, and applies overrides to produce a ready-to-use Config.
+// Returns the config, the resolved config file path, whether the file was auto-created, and any error.
+func BootstrapConfig(configFlag, hostFlag, positionalHost string) (*Config, string, bool, error) {
+	configPath, wasCreated, err := ResolveConfigPath(configFlag)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("failed to resolve config path: %w", err)
+	}
+
+	var config *Config
+	if configPath == "" {
+		config = DefaultConfig()
+	} else {
+		config, err = LoadConfig(configPath)
+		if err != nil {
+			return nil, "", false, fmt.Errorf("failed to load config: %w", err)
+		}
+	}
+
+	// Positional arg takes precedence over -host flag
+	if positionalHost != "" {
+		config.Hostnames = []string{positionalHost}
+	} else if hostFlag != "" {
+		config.Hostnames = []string{hostFlag}
+	}
+
+	if len(config.Hostnames) == 0 {
+		return nil, "", false, fmt.Errorf("hostname required: provide a domain as the first argument or use -host")
+	}
+
+	return config, configPath, wasCreated, nil
+}
+
 // fileExists checks if a file exists and is not a directory.
 func fileExists(path string) bool {
 	info, err := os.Stat(path)

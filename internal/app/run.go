@@ -26,40 +26,20 @@ func Run() error {
 		positionalHost = strings.TrimSpace(args[0])
 	}
 
-	// Resolve config path
-	configPath, wasCreated, err := dnsres.ResolveConfigPath(*configFile)
+	config, configPath, wasCreated, err := dnsres.BootstrapConfig(*configFile, *hostname, positionalHost)
 	if err != nil {
-		return fmt.Errorf("failed to resolve config path: %w", err)
+		return err
 	}
 
-	var config *dnsres.Config
+	// Print config resolution messages
 	if configPath == "" {
 		fmt.Println("No configuration file found; using built-in defaults")
-		config = dnsres.DefaultConfig()
 	} else {
 		fmt.Printf("Loading configuration from %s\n", configPath)
 		if wasCreated {
 			fmt.Printf("Created default configuration file at %s\n", configPath)
 		}
-
-		config, err = dnsres.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
 		fmt.Println("Configuration loaded")
-	}
-
-	// Override hostname if specified
-	if positionalHost != "" {
-		config.Hostnames = []string{positionalHost}
-		fmt.Printf("Hostname set from CLI: %s\n", positionalHost)
-	} else if *hostname != "" {
-		config.Hostnames = []string{*hostname}
-		fmt.Printf("Hostname override enabled: %s\n", *hostname)
-	}
-
-	if len(config.Hostnames) == 0 {
-		return fmt.Errorf("hostname required: provide a domain as the first argument or use -host")
 	}
 
 	// Create resolver

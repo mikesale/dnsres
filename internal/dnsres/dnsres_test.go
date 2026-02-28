@@ -414,6 +414,124 @@ func TestResolverGetLogDir(t *testing.T) {
 	}
 }
 
+func TestBootstrapConfig(t *testing.T) {
+	t.Run("loads from explicit config path", func(t *testing.T) {
+		configJSON := []byte(`{
+  "hostnames": ["example.com"],
+  "dns_servers": ["8.8.8.8:53"],
+  "query_timeout": "5s",
+  "query_interval": "30s",
+  "circuit_breaker": {"threshold": 5, "timeout": "30s"}
+}`)
+		configPath := filepath.Join(t.TempDir(), "config.json")
+		if err := os.WriteFile(configPath, configJSON, 0644); err != nil {
+			t.Fatalf("failed to write config: %v", err)
+		}
+
+		cfg, path, _, err := BootstrapConfig(configPath, "", "")
+		if err != nil {
+			t.Fatalf("BootstrapConfig returned error: %v", err)
+		}
+		if path != configPath {
+			t.Errorf("expected path %s, got %s", configPath, path)
+		}
+		if cfg.Hostnames[0] != "example.com" {
+			t.Errorf("expected hostname example.com, got %s", cfg.Hostnames[0])
+		}
+	})
+
+	t.Run("falls back to defaults when no config exists", func(t *testing.T) {
+		// Use a temp dir with no config.json and no XDG
+		oldWd, _ := os.Getwd()
+		defer func() { os.Chdir(oldWd) }()
+		os.Chdir(t.TempDir())
+
+		oldXDG := os.Getenv("XDG_CONFIG_HOME")
+		defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
+		os.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+		cfg, path, _, err := BootstrapConfig("", "", "fallback.example.com")
+		if err != nil {
+			t.Fatalf("BootstrapConfig returned error: %v", err)
+		}
+		// path may be XDG auto-created or empty depending on env
+		_ = path
+		if cfg.Hostnames[0] != "fallback.example.com" {
+			t.Errorf("expected positional host override, got %s", cfg.Hostnames[0])
+		}
+	})
+
+	t.Run("positional host overrides config and flag", func(t *testing.T) {
+		configJSON := []byte(`{
+  "hostnames": ["from-config.com"],
+  "dns_servers": ["8.8.8.8:53"],
+  "query_timeout": "5s",
+  "query_interval": "30s",
+  "circuit_breaker": {"threshold": 5, "timeout": "30s"}
+}`)
+		configPath := filepath.Join(t.TempDir(), "config.json")
+		os.WriteFile(configPath, configJSON, 0644)
+
+		cfg, _, _, err := BootstrapConfig(configPath, "from-flag.com", "from-positional.com")
+		if err != nil {
+			t.Fatalf("BootstrapConfig returned error: %v", err)
+		}
+		if cfg.Hostnames[0] != "from-positional.com" {
+			t.Errorf("expected positional host to win, got %s", cfg.Hostnames[0])
+		}
+	})
+
+	t.Run("host flag overrides config", func(t *testing.T) {
+		configJSON := []byte(`{
+  "hostnames": ["from-config.com"],
+  "dns_servers": ["8.8.8.8:53"],
+  "query_timeout": "5s",
+  "query_interval": "30s",
+  "circuit_breaker": {"threshold": 5, "timeout": "30s"}
+}`)
+		configPath := filepath.Join(t.TempDir(), "config.json")
+		os.WriteFile(configPath, configJSON, 0644)
+
+		cfg, _, _, err := BootstrapConfig(configPath, "from-flag.com", "")
+		if err != nil {
+			t.Fatalf("BootstrapConfig returned error: %v", err)
+		}
+		if cfg.Hostnames[0] != "from-flag.com" {
+			t.Errorf("expected flag host to win, got %s", cfg.Hostnames[0])
+		}
+	})
+
+	t.Run("errors when no hostname provided and config has none", func(t *testing.T) {
+		configJSON := []byte(`{
+  "hostnames": [],
+  "dns_servers": ["8.8.8.8:53"],
+  "query_timeout": "5s",
+  "query_interval": "30s",
+  "circuit_breaker": {"threshold": 5, "timeout": "30s"}
+}`)
+		configPath := filepath.Join(t.TempDir(), "config.json")
+		os.WriteFile(configPath, configJSON, 0644)
+
+		_, _, _, err := BootstrapConfig(configPath, "", "")
+		if err == nil {
+			t.Fatal("expected error for missing hostname")
+		}
+		if !strings.Contains(err.Error(), "hostname") {
+			t.Errorf("expected hostname-related error, got: %v", err)
+		}
+	})
+
+	t.Run("errors for invalid config file", func(t *testing.T) {
+		configPath := filepath.Join(t.TempDir(), "config.json")
+		os.WriteFile(configPath, []byte("not json"), 0644)
+
+		_, _, _, err := BootstrapConfig(configPath, "", "test.com")
+		if err == nil {
+			t.Fatal("expected error for invalid config")
+		}
+	})
+}
+
 func TestResolverLogDirWasFallback(t *testing.T) {
 	t.Run("returns false for custom log directory", func(t *testing.T) {
 		tempDir := t.TempDir()
